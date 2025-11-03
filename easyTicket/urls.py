@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/auth/", include("UserAuth.urls")),
     path("api/events/", include("Events.urls")),
     path("api/tickets/", include("Tickets.urls")),
+    path("api/orders/", include("Orders.urls")),
 ]
 
 # Serve media and static files in development
