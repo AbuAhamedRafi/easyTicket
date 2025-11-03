@@ -6,6 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 import uuid
 from .models import User
+from Common.email_utils import send_verification_email, send_welcome_email
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -71,8 +72,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-        # TODO: Send verification email (will implement in utils)
-        # send_verification_email(user)
+        # Send verification email
+        send_verification_email(user.email, verification_token)
 
         return user
 
@@ -104,7 +105,7 @@ class EmailVerificationSerializer(serializers.Serializer):
         return value
 
     def save(self):
-        """Mark email as verified"""
+        """Mark email as verified and send welcome email"""
         user = self.context["user"]
         user.is_email_verified = True
         user.email_verification_token = None
@@ -116,6 +117,11 @@ class EmailVerificationSerializer(serializers.Serializer):
                 "email_verification_token_created",
             ]
         )
+
+        # Send welcome email after successful verification
+        user_name = user.first_name or user.email.split("@")[0]
+        send_welcome_email(user.email, user_name)
+
         return user
 
 
@@ -258,13 +264,15 @@ class ResendVerificationSerializer(serializers.Serializer):
             ]
         )
 
-        # TODO: Send verification email
-        # send_verification_email(user)
+        # Send verification email
+        send_verification_email(user.email, user.email_verification_token)
 
         return user
 
 
 class LogoutSerializer(serializers.Serializer):
     """Serializer for logout endpoint"""
-    
-    refresh = serializers.CharField(required=True, help_text="Refresh token to blacklist")
+
+    refresh = serializers.CharField(
+        required=True, help_text="Refresh token to blacklist"
+    )
