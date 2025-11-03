@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "Common",
     "UserAuth",
     "Events",
+    "Tickets",
 ]
 
 MIDDLEWARE = [
