@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # API routes
     path("api/auth/", include("UserAuth.urls")),
+    path("api/events/", include("Events.urls")),
 ]
 
 # Serve media and static files in development
