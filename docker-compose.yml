@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Optional - comment out if using local PostgreSQL)
+  # db:
+  #   image: postgres:16
+  #   container_name: easyticket_db
+  #   environment:
+  #     POSTGRES_DB: ${DB_NAME}
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - easyticket_network
+
+  web:
+    build: .
+    container_name: easyticket_web
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    # Comment out depends_on if not using Docker PostgreSQL
+    # depends_on:
+    #   - db
+    networks:
+      - easyticket_network
+
+volumes:
+  postgres_data:
+
+networks:
+  easyticket_network:
+    driver: bridge
