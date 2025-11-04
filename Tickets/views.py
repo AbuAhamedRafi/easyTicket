@@ -130,7 +130,7 @@ class TicketTypeViewSet(viewsets.ModelViewSet):
         description="Get all ticket types for a specific event",
         tags=["Tickets"],
     )
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def by_event(self, request):
         """Get all tickets for a specific event"""
         event_id = request.query_params.get("event_id")
@@ -151,7 +151,7 @@ class TicketTypeViewSet(viewsets.ModelViewSet):
         description="Get all currently available tickets (on sale and not sold out)",
         tags=["Tickets"],
     )
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def available(self, request):
         """Get all available tickets"""
         available_tickets = [ticket for ticket in self.queryset if ticket.is_on_sale]

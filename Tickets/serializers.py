@@ -171,27 +171,17 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
         max_purchase = attrs.get("max_purchase", 10)
 
         # Validate pricing type requirements
-        if pricing_type == "simple" and not price:
-            raise serializers.ValidationError(
-                {"price": "Price is required for simple pricing type"}
-            )
+        if pricing_type == "simple":
+            if not price:
+                raise serializers.ValidationError(
+                    {"price": "Price is required for simple pricing type"}
+                )
+        else:
+            # For non-simple pricing types, price should be null
+            attrs['price'] = None
 
-        if pricing_type == "tiered" and not tiers:
-            raise serializers.ValidationError(
-                {"tiers": "At least one tier is required for tiered pricing"}
-            )
-
-        if pricing_type == "day_based" and not day_passes:
-            raise serializers.ValidationError(
-                {
-                    "day_passes": "At least one day pass is required for day-based pricing"
-                }
-            )
-
-        if pricing_type == "tier_and_day" and (not tiers or not day_passes):
-            raise serializers.ValidationError(
-                "Both tiers and day passes are required for tier + day pricing"
-            )
+        # Note: Tiers and day passes can be created separately after ticket type creation
+        # So we don't enforce them during creation, only during validation if provided
 
         # Validate sales period
         if sales_start and sales_end and sales_end <= sales_start:

@@ -163,8 +163,8 @@ class LogoutView(generics.GenericAPIView):
 class CurrentUserView(generics.RetrieveUpdateAPIView):
     """
     API endpoint to get/update current user profile
-    GET /api/auth/me/
-    PUT/PATCH /api/auth/me/
+    GET /api/auth/profile/
+    PUT/PATCH /api/auth/profile/
     """
 
     serializer_class = UserSerializer

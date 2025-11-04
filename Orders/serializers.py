@@ -104,10 +104,10 @@ class OrderItemCreateSerializer(serializers.Serializer):
 
             try:
                 tier = TicketTier.objects.get(
-                    id=ticket_tier_id, ticket_type=ticket_type, is_active=True
+                    id=ticket_tier_id, ticket_type=ticket_type
                 )
             except TicketTier.DoesNotExist:
-                raise serializers.ValidationError("Invalid or inactive ticket tier")
+                raise serializers.ValidationError("Invalid ticket tier")
 
             # Check tier quantity
             tier_available = tier.available_quantity
@@ -130,10 +130,10 @@ class OrderItemCreateSerializer(serializers.Serializer):
 
             try:
                 day_pass = DayPass.objects.get(
-                    id=day_pass_id, ticket_type=ticket_type, is_active=True
+                    id=day_pass_id, ticket_type=ticket_type
                 )
             except DayPass.DoesNotExist:
-                raise serializers.ValidationError("Invalid or inactive day pass")
+                raise serializers.ValidationError("Invalid day pass")
 
             # Check day pass quantity
             day_available = day_pass.available_quantity
@@ -154,17 +154,17 @@ class OrderItemCreateSerializer(serializers.Serializer):
 
             try:
                 tier = TicketTier.objects.get(
-                    id=ticket_tier_id, ticket_type=ticket_type, is_active=True
+                    id=ticket_tier_id, ticket_type=ticket_type
                 )
             except TicketTier.DoesNotExist:
-                raise serializers.ValidationError("Invalid or inactive ticket tier")
+                raise serializers.ValidationError("Invalid ticket tier")
 
             try:
                 day_pass = DayPass.objects.get(
-                    id=day_pass_id, ticket_type=ticket_type, is_active=True
+                    id=day_pass_id, ticket_type=ticket_type
                 )
             except DayPass.DoesNotExist:
-                raise serializers.ValidationError("Invalid or inactive day pass")
+                raise serializers.ValidationError("Invalid day pass")
 
             # Check quantities (use minimum of both)
             tier_available = tier.available_quantity
