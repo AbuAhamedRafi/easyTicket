@@ -61,8 +61,10 @@ class OrderItemCreateSerializer(serializers.Serializer):
 
         # Get ticket type with row lock to prevent race conditions
         try:
-            ticket_type = TicketType.objects.select_for_update().select_related("event").get(
-                id=ticket_type_id
+            ticket_type = (
+                TicketType.objects.select_for_update()
+                .select_related("event")
+                .get(id=ticket_type_id)
             )
         except TicketType.DoesNotExist:
             raise serializers.ValidationError("Ticket type not found")
@@ -322,7 +324,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             user=user,
             subtotal=subtotal,
             total_amount=subtotal,  # Will be recalculated with fees
-            **validated_data
+            **validated_data,
         )
 
         # Create order items
