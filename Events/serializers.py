@@ -119,12 +119,12 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
 class EventCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating events"""
-    
+
     # Make category optional and accept null
     category = serializers.PrimaryKeyRelatedField(
         queryset=EventCategory.objects.filter(is_active=True),
         required=False,
-        allow_null=True
+        allow_null=True,
     )
 
     class Meta:

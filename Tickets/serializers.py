@@ -178,7 +178,7 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
                 )
         else:
             # For non-simple pricing types, price should be null
-            attrs['price'] = None
+            attrs["price"] = None
 
         # Note: Tiers and day passes can be created separately after ticket type creation
         # So we don't enforce them during creation, only during validation if provided

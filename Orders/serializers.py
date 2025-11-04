@@ -129,9 +129,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError("This ticket type does not use tiers")
 
             try:
-                day_pass = DayPass.objects.get(
-                    id=day_pass_id, ticket_type=ticket_type
-                )
+                day_pass = DayPass.objects.get(id=day_pass_id, ticket_type=ticket_type)
             except DayPass.DoesNotExist:
                 raise serializers.ValidationError("Invalid day pass")
 
@@ -160,9 +158,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Invalid ticket tier")
 
             try:
-                day_pass = DayPass.objects.get(
-                    id=day_pass_id, ticket_type=ticket_type
-                )
+                day_pass = DayPass.objects.get(id=day_pass_id, ticket_type=ticket_type)
             except DayPass.DoesNotExist:
                 raise serializers.ValidationError("Invalid day pass")
 

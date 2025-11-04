@@ -35,48 +35,52 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
     # Skip if this is a new order being created
     if created:
         return
-    
+
     # Get old and new status
-    old_status = getattr(instance, '_old_status', None)
+    old_status = getattr(instance, "_old_status", None)
     new_status = instance.status
-    
+
     # If status changed to 'confirmed', increase sold quantities
     if old_status != "confirmed" and new_status == "confirmed":
         with transaction.atomic():
-            for item in instance.items.select_related('ticket_type', 'ticket_tier', 'day_pass').all():
+            for item in instance.items.select_related(
+                "ticket_type", "ticket_tier", "day_pass"
+            ).all():
                 # Update ticket type sold count
                 ticket_type = item.ticket_type
                 ticket_type.quantity_sold += item.quantity
-                ticket_type.save(update_fields=['quantity_sold'])
+                ticket_type.save(update_fields=["quantity_sold"])
 
                 # Update tier sold count if applicable
                 if item.ticket_tier:
                     tier = item.ticket_tier
                     tier.quantity_sold += item.quantity
-                    tier.save(update_fields=['quantity_sold'])
+                    tier.save(update_fields=["quantity_sold"])
 
                 # Update day pass sold count if applicable
                 if item.day_pass:
                     day_pass = item.day_pass
                     day_pass.quantity_sold += item.quantity
-                    day_pass.save(update_fields=['quantity_sold'])
+                    day_pass.save(update_fields=["quantity_sold"])
 
     # If status changed from 'confirmed' to 'cancelled'/'refunded', restore inventory
     elif old_status == "confirmed" and new_status in ["cancelled", "refunded"]:
         with transaction.atomic():
-            for item in instance.items.select_related('ticket_type', 'ticket_tier', 'day_pass').all():
+            for item in instance.items.select_related(
+                "ticket_type", "ticket_tier", "day_pass"
+            ).all():
                 # Restore ticket type quantity
                 ticket_type = item.ticket_type
                 ticket_type.quantity_sold = max(
                     0, ticket_type.quantity_sold - item.quantity
                 )
-                ticket_type.save(update_fields=['quantity_sold'])
+                ticket_type.save(update_fields=["quantity_sold"])
 
                 # Restore tier quantity if applicable
                 if item.ticket_tier:
                     tier = item.ticket_tier
                     tier.quantity_sold = max(0, tier.quantity_sold - item.quantity)
-                    tier.save(update_fields=['quantity_sold'])
+                    tier.save(update_fields=["quantity_sold"])
 
                 # Restore day pass quantity if applicable
                 if item.day_pass:
@@ -84,7 +88,7 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
                     day_pass.quantity_sold = max(
                         0, day_pass.quantity_sold - item.quantity
                     )
-                    day_pass.save(update_fields=['quantity_sold'])
+                    day_pass.save(update_fields=["quantity_sold"])
 
 
 @receiver(pre_delete, sender=Order)
@@ -94,19 +98,21 @@ def restore_inventory_on_order_delete(sender, instance, **kwargs):
     """
     if instance.status == "confirmed":
         with transaction.atomic():
-            for item in instance.items.select_related('ticket_type', 'ticket_tier', 'day_pass').all():
+            for item in instance.items.select_related(
+                "ticket_type", "ticket_tier", "day_pass"
+            ).all():
                 # Restore ticket type quantity
                 ticket_type = item.ticket_type
                 ticket_type.quantity_sold = max(
                     0, ticket_type.quantity_sold - item.quantity
                 )
-                ticket_type.save(update_fields=['quantity_sold'])
+                ticket_type.save(update_fields=["quantity_sold"])
 
                 # Restore tier quantity if applicable
                 if item.ticket_tier:
                     tier = item.ticket_tier
                     tier.quantity_sold = max(0, tier.quantity_sold - item.quantity)
-                    tier.save(update_fields=['quantity_sold'])
+                    tier.save(update_fields=["quantity_sold"])
 
                 # Restore day pass quantity if applicable
                 if item.day_pass:
@@ -114,4 +120,4 @@ def restore_inventory_on_order_delete(sender, instance, **kwargs):
                     day_pass.quantity_sold = max(
                         0, day_pass.quantity_sold - item.quantity
                     )
-                    day_pass.save(update_fields=['quantity_sold'])
+                    day_pass.save(update_fields=["quantity_sold"])
