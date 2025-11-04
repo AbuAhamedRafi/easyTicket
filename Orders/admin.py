@@ -4,7 +4,7 @@ Admin configuration for Orders app
 
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Order, OrderItem
+from .models import Order, OrderItem, WebhookEvent
 
 
 class OrderItemInline(admin.TabularInline):
@@ -267,3 +267,39 @@ class OrderItemAdmin(admin.ModelAdmin):
         """Optimize queries"""
         qs = super().get_queryset(request)
         return qs.select_related("order", "ticket_type", "ticket_tier", "day_pass")
+
+
+@admin.register(WebhookEvent)
+class WebhookEventAdmin(admin.ModelAdmin):
+    """Admin for WebhookEvent model"""
+
+    list_display = [
+        "event_id",
+        "event_type",
+        "processed_at",
+    ]
+
+    list_filter = [
+        "event_type",
+        "processed_at",
+    ]
+
+    search_fields = [
+        "event_id",
+        "event_type",
+    ]
+
+    readonly_fields = [
+        "event_id",
+        "event_type",
+        "processed_at",
+        "payload",
+    ]
+
+    def has_add_permission(self, request):
+        """Prevent manual creation"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Prevent editing"""
+        return False

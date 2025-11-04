@@ -179,12 +179,20 @@ class Order(models.Model):
         return sum(item.quantity for item in self.items.all())
 
     def calculate_totals(self):
-        """Recalculate order totals from items"""
+        """Recalculate order totals from items using consistent fee calculation"""
+        from decimal import Decimal
+        from django.conf import settings
+
         items = self.items.all()
         self.subtotal = sum(item.subtotal for item in items)
 
-        # Calculate service fee (e.g., 10% of subtotal)
-        self.service_fee = self.subtotal * Decimal("0.10")
+        # Use consistent service fee calculation from settings
+        fee_percentage = Decimal(
+            str(getattr(settings, "STRIPE_SERVICE_FEE_PERCENTAGE", 5.0))
+        )
+        self.service_fee = (self.subtotal * fee_percentage / Decimal("100")).quantize(
+            Decimal("0.01")
+        )
 
         # Apply discount if promo code is valid
         # (This would be implemented with a PromoCode model)
@@ -302,3 +310,33 @@ class OrderItem(models.Model):
         if self.day_name:
             name += f" - {self.day_name}"
         return name
+
+
+class WebhookEvent(models.Model):
+    """
+    Track processed webhook events for idempotency
+    Prevents duplicate processing of the same event
+    """
+
+    event_id = models.CharField(
+        max_length=255, unique=True, db_index=True, help_text="Stripe event ID"
+    )
+    event_type = models.CharField(
+        max_length=100, help_text="Event type (e.g., payment_intent.succeeded)"
+    )
+    processed_at = models.DateTimeField(auto_now_add=True)
+    payload = models.JSONField(
+        null=True, blank=True, help_text="Event payload for debugging"
+    )
+
+    class Meta:
+        verbose_name = "Webhook Event"
+        verbose_name_plural = "Webhook Events"
+        ordering = ["-processed_at"]
+        indexes = [
+            models.Index(fields=["event_id"]),
+            models.Index(fields=["-processed_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} - {self.event_id}"
