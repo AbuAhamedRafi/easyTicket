@@ -1,5 +1,6 @@
 """
 Serializers for Orders app
+Handles order creation, validation, and payment processing
 """
 
 from rest_framework import serializers
@@ -53,7 +54,16 @@ class OrderItemCreateSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
 
     def validate(self, data):
-        """Validate ticket availability and pricing"""
+        """
+        Validate ticket availability and pricing
+        
+        This method:
+        1. Locks the ticket row to prevent race conditions
+        2. Checks if ticket is on sale
+        3. Validates quantity availability  
+        4. Determines pricing based on ticket type (simple/tiered/day-based/combined)
+        5. Returns validated data with price information
+        """
         ticket_type_id = data.get("ticket_type_id")
         ticket_tier_id = data.get("ticket_tier_id")
         day_pass_id = data.get("day_pass_id")

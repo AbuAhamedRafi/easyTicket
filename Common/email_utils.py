@@ -385,3 +385,305 @@ def send_welcome_email(user_email, user_name):
     except Exception as e:
         print(f"Error sending welcome email to {user_email}: {e}")
         return False
+
+
+def send_order_confirmation_email(order):
+    """
+    Send order confirmation email with inline HTML template
+
+    Args:
+        order: Order instance
+
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    subject = f"✓ Order Confirmed: {order.order_number} - {order.event.title}"
+
+    # Build items list HTML
+    items_html = ""
+    for item in order.items.all():
+        items_html += f"""
+        <div class="ticket-item">
+            <strong>{item.full_ticket_name}</strong><br>
+            Quantity: {item.quantity} × ${item.unit_price} = ${item.subtotal}
+        </div>
+        """
+
+    # HTML email template
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .header {{
+                background-color: #4CAF50;
+                color: white;
+                padding: 20px;
+                text-align: center;
+                border-radius: 5px 5px 0 0;
+            }}
+            .content {{
+                background-color: #f9f9f9;
+                padding: 30px;
+                border: 1px solid #ddd;
+            }}
+            .order-details {{
+                background-color: white;
+                padding: 20px;
+                margin: 20px 0;
+                border-radius: 5px;
+                border: 1px solid #e0e0e0;
+            }}
+            .ticket-item {{
+                padding: 10px 0;
+                border-bottom: 1px solid #e0e0e0;
+            }}
+            .ticket-item:last-child {{
+                border-bottom: none;
+            }}
+            .total {{
+                font-size: 1.2em;
+                font-weight: bold;
+                color: #4CAF50;
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 2px solid #4CAF50;
+            }}
+            .footer {{
+                text-align: center;
+                padding: 20px;
+                color: #666;
+                font-size: 0.9em;
+            }}
+            .button {{
+                display: inline-block;
+                padding: 12px 30px;
+                background-color: #4CAF50;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                margin: 20px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>✓ Order Confirmed!</h1>
+        </div>
+
+        <div class="content">
+            <h2>Thank you for your purchase!</h2>
+            <p>Your order has been confirmed and your payment has been processed successfully.</p>
+
+            <div class="order-details">
+                <h3>Order Details</h3>
+                <p><strong>Order Number:</strong> {order.order_number}</p>
+                <p><strong>Event:</strong> {order.event.title}</p>
+                <p><strong>Date:</strong> {order.event.start_date.strftime('%B %d, %Y at %I:%M %p')}</p>
+                <p><strong>Venue:</strong> {order.event.venue_name}, {order.event.venue_city}</p>
+
+                <h4 style="margin-top: 20px;">Tickets:</h4>
+                {items_html}
+
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                    <p>Subtotal: ${order.subtotal}</p>
+                    <p>Service Fee: ${order.service_fee}</p>
+                    {f'<p>Discount: -${order.discount_amount}</p>' if order.discount_amount > 0 else ''}
+                    <p class="total">Total Paid: ${order.total_amount}</p>
+                </div>
+            </div>
+
+            <p><strong>Payment Method:</strong> {order.payment_method.title()}</p>
+            <p><strong>Payment ID:</strong> {order.payment_id}</p>
+
+            <div style="text-align: center;">
+                <a href="{settings.FRONTEND_URL}/orders/{order.id}" class="button">View Order Details</a>
+            </div>
+
+            <p style="margin-top: 30px;">Your tickets have been sent to: <strong>{order.buyer_email}</strong></p>
+            <p>Please bring a valid ID and this confirmation to the event.</p>
+        </div>
+
+        <div class="footer">
+            <p>If you have any questions, please contact us at support@easyticket.com</p>
+            <p>&copy; 2025 EasyTicket. All rights reserved.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Plain text fallback
+    items_text = "\n".join(
+        [
+            f"- {item.full_ticket_name}: {item.quantity} × ${item.unit_price} = ${item.subtotal}"
+            for item in order.items.all()
+        ]
+    )
+
+    plain_message = f"""
+Order Confirmed!
+
+Thank you for your purchase!
+
+Order Number: {order.order_number}
+Event: {order.event.title}
+Date: {order.event.start_date.strftime('%B %d, %Y at %I:%M %p')}
+Venue: {order.event.venue_name}, {order.event.venue_city}
+
+Tickets:
+{items_text}
+
+Subtotal: ${order.subtotal}
+Service Fee: ${order.service_fee}
+{f'Discount: -${order.discount_amount}' if order.discount_amount > 0 else ''}
+Total Paid: ${order.total_amount}
+
+Payment Method: {order.payment_method.title()}
+Payment ID: {order.payment_id}
+
+Your tickets have been sent to: {order.buyer_email}
+
+View your order: {settings.FRONTEND_URL}/orders/{order.id}
+
+If you have any questions, contact us at support@easyticket.com
+
+© 2025 EasyTicket. All rights reserved.
+    """
+
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[order.buyer_email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending order confirmation email to {order.buyer_email}: {e}")
+        return False
+
+
+def send_order_cancelled_email(order):
+    """
+    Send order cancellation/refund email with inline HTML template
+
+    Args:
+        order: Order instance
+
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    subject = f"Order Cancelled: {order.order_number}"
+
+    # HTML email template
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .header {{
+                background-color: #f44336;
+                color: white;
+                padding: 20px;
+                text-align: center;
+                border-radius: 5px 5px 0 0;
+            }}
+            .content {{
+                background-color: #f9f9f9;
+                padding: 30px;
+                border: 1px solid #ddd;
+            }}
+            .order-details {{
+                background-color: white;
+                padding: 20px;
+                margin: 20px 0;
+                border-radius: 5px;
+                border: 1px solid #e0e0e0;
+            }}
+            .footer {{
+                text-align: center;
+                padding: 20px;
+                color: #666;
+                font-size: 0.9em;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>Order Cancelled</h1>
+        </div>
+
+        <div class="content">
+            <h2>Your order has been cancelled</h2>
+
+            <div class="order-details">
+                <p><strong>Order Number:</strong> {order.order_number}</p>
+                <p><strong>Event:</strong> {order.event.title}</p>
+                <p><strong>Amount:</strong> ${order.total_amount}</p>
+                {f'<p><strong>Reason:</strong> {order.cancellation_reason}</p>' if order.cancellation_reason else ''}
+            </div>
+
+            {f'<p>A refund has been initiated and will be processed within 5-10 business days.</p>' if order.status == 'refunded' else ''}
+
+            <p>If you have any questions, please contact our support team.</p>
+        </div>
+
+        <div class="footer">
+            <p>Contact us at support@easyticket.com</p>
+            <p>&copy; 2025 EasyTicket. All rights reserved.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Plain text fallback
+    plain_message = f"""
+Order Cancelled
+
+Your order has been cancelled.
+
+Order Number: {order.order_number}
+Event: {order.event.title}
+Amount: ${order.total_amount}
+{f'Reason: {order.cancellation_reason}' if order.cancellation_reason else ''}
+
+{f'A refund has been initiated and will be processed within 5-10 business days.' if order.status == 'refunded' else ''}
+
+If you have any questions, contact us at support@easyticket.com
+
+© 2025 EasyTicket. All rights reserved.
+    """
+
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[order.buyer_email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending order cancellation email to {order.buyer_email}: {e}")
+        return False

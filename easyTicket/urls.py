@@ -27,8 +27,8 @@ urlpatterns = [
     path("api/auth/", include("UserAuth.urls")),
     path("api/events/", include("Events.urls")),
     path("api/tickets/", include("Tickets.urls")),
-    path("api/orders/", include("Orders.urls")),
-    path("api/", include("Orders.payment_urls")),  # Payment endpoints
+    path("api/orders/", include("Orders.urls")),  # Includes payment endpoints
+    path("api/webhooks/", include("Orders.webhook_urls")),  # Webhook endpoints
 ]
 
 # Serve media and static files in development
