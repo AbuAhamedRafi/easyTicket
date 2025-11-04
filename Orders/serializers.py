@@ -56,11 +56,11 @@ class OrderItemCreateSerializer(serializers.Serializer):
     def validate(self, data):
         """
         Validate ticket availability and pricing
-        
+
         This method:
         1. Locks the ticket row to prevent race conditions
         2. Checks if ticket is on sale
-        3. Validates quantity availability  
+        3. Validates quantity availability
         4. Determines pricing based on ticket type (simple/tiered/day-based/combined)
         5. Returns validated data with price information
         """

@@ -275,7 +275,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def create_payment_intent(self, request, pk=None):
         """
         Create Stripe Payment Intent for an order
-        
+
         This generates a client_secret that the frontend uses with Stripe.js
         to collect payment information securely.
         """
@@ -360,7 +360,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            logger.error(f"Error creating payment intent for order {order.id}: {str(e)}")
+            logger.error(
+                f"Error creating payment intent for order {order.id}: {str(e)}"
+            )
             return Response(
                 {"error": "Failed to create payment intent"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -399,7 +401,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error retrieving payment for order {order.id}: {str(e)}")
+            logger.error(
+                f"Stripe error retrieving payment for order {order.id}: {str(e)}"
+            )
             return Response(
                 {"error": f"Failed to retrieve payment status: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -414,7 +418,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def refund_order(self, request, pk=None):
         """
         Process a refund for a confirmed order
-        
+
         Body params:
         - amount (optional): Partial refund amount. If not provided, full refund.
         - reason (optional): Reason for refund
@@ -462,6 +466,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             # Send refund notification email
             try:
                 from Common.email_utils import send_order_cancelled_email
+
                 send_order_cancelled_email(order)
             except Exception as e:
                 logger.error(f"Failed to send refund email: {e}")
