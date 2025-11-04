@@ -85,6 +85,19 @@ class OrderViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsOrderOwner()]
         return [IsAuthenticated()]
 
+    def create(self, request, *args, **kwargs):
+        """Create order and return detailed response"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+
+        # Return detailed order information
+        detail_serializer = OrderDetailSerializer(order)
+        headers = self.get_success_headers(detail_serializer.data)
+        return Response(
+            detail_serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
+
     @extend_schema(
         summary="Get pending orders",
         description="Get all pending orders for the authenticated user",

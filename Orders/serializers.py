@@ -59,9 +59,9 @@ class OrderItemCreateSerializer(serializers.Serializer):
         day_pass_id = data.get("day_pass_id")
         quantity = data.get("quantity")
 
-        # Get ticket type
+        # Get ticket type with row lock to prevent race conditions
         try:
-            ticket_type = TicketType.objects.select_related("event").get(
+            ticket_type = TicketType.objects.select_for_update().select_related("event").get(
                 id=ticket_type_id
             )
         except TicketType.DoesNotExist:
@@ -73,7 +73,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
                 f"Ticket '{ticket_type.name}' is not currently on sale"
             )
 
-        # Check quantity availability
+        # Check quantity availability with locked row
         available = ticket_type.available_quantity
         if available is not None and quantity > available:
             raise serializers.ValidationError(
@@ -310,19 +310,29 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop("items")
         user = self.context["request"].user
 
-        # Create order
-        order = Order.objects.create(user=user, **validated_data)
-
-        # Create order items and calculate totals
+        # Calculate subtotal first before creating order
         subtotal = Decimal("0.00")
+        for item_data in items_data:
+            unit_price = item_data["unit_price"]
+            quantity = item_data["quantity"]
+            subtotal += unit_price * quantity
 
+        # Create order with initial subtotal
+        order = Order.objects.create(
+            user=user,
+            subtotal=subtotal,
+            total_amount=subtotal,  # Will be recalculated with fees
+            **validated_data
+        )
+
+        # Create order items
         for item_data in items_data:
             ticket_type = item_data["ticket_type"]
             unit_price = item_data["unit_price"]
             quantity = item_data["quantity"]
 
             # Create order item
-            order_item = OrderItem.objects.create(
+            OrderItem.objects.create(
                 order=order,
                 ticket_type=ticket_type,
                 ticket_tier=item_data.get("tier"),
@@ -331,10 +341,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 unit_price=unit_price,
             )
 
-            subtotal += order_item.subtotal
-
-        # Calculate order totals
-        order.subtotal = subtotal
+        # Recalculate totals with fees
         order.calculate_totals()
 
         return order

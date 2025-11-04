@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/events/", include("Events.urls")),
     path("api/tickets/", include("Tickets.urls")),
     path("api/orders/", include("Orders.urls")),
+    path("api/", include("Orders.payment_urls")),  # Payment endpoints
 ]
 
 # Serve media and static files in development
