@@ -3,7 +3,7 @@ Email utility functions for the application
 Handles all email sending functionality including verification, password reset, etc.
 """
 
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMessage
 from django.conf import settings
 
 
@@ -389,7 +389,13 @@ def send_welcome_email(user_email, user_name):
 
 def send_order_confirmation_email(order):
     """
-    Send order confirmation email with inline HTML template
+    Send order confirmation email with ticket PDF attachments
+
+    Enhanced version that:
+    - Groups tickets smartly (by event, date, tier)
+    - Generates separate PDFs for each group
+    - Attaches all PDFs to one email
+    - Includes summary table
 
     Args:
         order: Order instance
@@ -397,180 +403,287 @@ def send_order_confirmation_email(order):
     Returns:
         bool: True if email sent successfully, False otherwise
     """
-    subject = f"✓ Order Confirmed: {order.order_number} - {order.event.title}"
-
-    # Build items list HTML
-    items_html = ""
-    for item in order.items.all():
-        items_html += f"""
-        <div class="ticket-item">
-            <strong>{item.full_ticket_name}</strong><br>
-            Quantity: {item.quantity} × ${item.unit_price} = ${item.subtotal}
-        </div>
-        """
-
-    # HTML email template
-    html_message = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }}
-            .header {{
-                background-color: #4CAF50;
-                color: white;
-                padding: 20px;
-                text-align: center;
-                border-radius: 5px 5px 0 0;
-            }}
-            .content {{
-                background-color: #f9f9f9;
-                padding: 30px;
-                border: 1px solid #ddd;
-            }}
-            .order-details {{
-                background-color: white;
-                padding: 20px;
-                margin: 20px 0;
-                border-radius: 5px;
-                border: 1px solid #e0e0e0;
-            }}
-            .ticket-item {{
-                padding: 10px 0;
-                border-bottom: 1px solid #e0e0e0;
-            }}
-            .ticket-item:last-child {{
-                border-bottom: none;
-            }}
-            .total {{
-                font-size: 1.2em;
-                font-weight: bold;
-                color: #4CAF50;
-                margin-top: 15px;
-                padding-top: 15px;
-                border-top: 2px solid #4CAF50;
-            }}
-            .footer {{
-                text-align: center;
-                padding: 20px;
-                color: #666;
-                font-size: 0.9em;
-            }}
-            .button {{
-                display: inline-block;
-                padding: 12px 30px;
-                background-color: #4CAF50;
-                color: white;
-                text-decoration: none;
-                border-radius: 5px;
-                margin: 20px 0;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>✓ Order Confirmed!</h1>
-        </div>
-
-        <div class="content">
-            <h2>Thank you for your purchase!</h2>
-            <p>Your order has been confirmed and your payment has been processed successfully.</p>
-
-            <div class="order-details">
-                <h3>Order Details</h3>
-                <p><strong>Order Number:</strong> {order.order_number}</p>
-                <p><strong>Event:</strong> {order.event.title}</p>
-                <p><strong>Date:</strong> {order.event.start_date.strftime('%B %d, %Y at %I:%M %p')}</p>
-                <p><strong>Venue:</strong> {order.event.venue_name}, {order.event.venue_city}</p>
-
-                <h4 style="margin-top: 20px;">Tickets:</h4>
-                {items_html}
-
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                    <p>Subtotal: ${order.subtotal}</p>
-                    <p>Service Fee: ${order.service_fee}</p>
-                    {f'<p>Discount: -${order.discount_amount}</p>' if order.discount_amount > 0 else ''}
-                    <p class="total">Total Paid: ${order.total_amount}</p>
-                </div>
-            </div>
-
-            <p><strong>Payment Method:</strong> {order.payment_method.title()}</p>
-            <p><strong>Payment ID:</strong> {order.payment_id}</p>
-
-            <div style="text-align: center;">
-                <a href="{settings.FRONTEND_URL}/orders/{order.id}" class="button">View Order Details</a>
-            </div>
-
-            <p style="margin-top: 30px;">Your tickets have been sent to: <strong>{order.buyer_email}</strong></p>
-            <p>Please bring a valid ID and this confirmation to the event.</p>
-        </div>
-
-        <div class="footer">
-            <p>If you have any questions, please contact us at support@easyticket.com</p>
-            <p>&copy; 2025 EasyTicket. All rights reserved.</p>
-        </div>
-    </body>
-    </html>
-    """
-
-    # Plain text fallback
-    items_text = "\n".join(
-        [
-            f"- {item.full_ticket_name}: {item.quantity} × ${item.unit_price} = ${item.subtotal}"
-            for item in order.items.all()
-        ]
+    from Common.pdf_utils import (
+        generate_order_ticket_pdfs,
+        group_tickets_by_type,
+        generate_summary_table_html,
+        generate_pdf_attachment_list_html,
     )
 
-    plain_message = f"""
-Order Confirmed!
-
-Thank you for your purchase!
-
-Order Number: {order.order_number}
-Event: {order.event.title}
-Date: {order.event.start_date.strftime('%B %d, %Y at %I:%M %p')}
-Venue: {order.event.venue_name}, {order.event.venue_city}
-
-Tickets:
-{items_text}
-
-Subtotal: ${order.subtotal}
-Service Fee: ${order.service_fee}
-{f'Discount: -${order.discount_amount}' if order.discount_amount > 0 else ''}
-Total Paid: ${order.total_amount}
-
-Payment Method: {order.payment_method.title()}
-Payment ID: {order.payment_id}
-
-Your tickets have been sent to: {order.buyer_email}
-
-View your order: {settings.FRONTEND_URL}/orders/{order.id}
-
-If you have any questions, contact us at support@easyticket.com
-
-© 2025 EasyTicket. All rights reserved.
-    """
+    subject = f"✓ Your Tickets for {order.event.title}! (Order #{order.order_number})"
 
     try:
-        send_mail(
+        # Generate ticket PDFs
+        ticket_groups = group_tickets_by_type(order)
+        pdf_attachments = generate_order_ticket_pdfs(order)
+
+        # Generate summary table HTML
+        summary_table = generate_summary_table_html(ticket_groups)
+
+        # Generate PDF attachment list HTML
+        pdf_list = generate_pdf_attachment_list_html(ticket_groups)
+
+        # Total ticket count
+        total_tickets = sum(group["quantity"] for group in ticket_groups)
+
+        # HTML email template
+        html_message = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 700px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 30px 20px;
+                    text-align: center;
+                    border-radius: 8px 8px 0 0;
+                }}
+                .header h1 {{
+                    margin: 0;
+                    font-size: 28px;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border: 1px solid #ddd;
+                    border-top: none;
+                }}
+                .order-summary {{
+                    background-color: white;
+                    padding: 25px;
+                    margin: 25px 0;
+                    border-radius: 8px;
+                    border: 1px solid #e0e0e0;
+                }}
+                .section-title {{
+                    color: #4CAF50;
+                    font-size: 20px;
+                    margin-top: 25px;
+                    margin-bottom: 15px;
+                    border-bottom: 2px solid #4CAF50;
+                    padding-bottom: 8px;
+                }}
+                .info-box {{
+                    background-color: #e8f5e9;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 15px 0;
+                    border-left: 4px solid #4CAF50;
+                }}
+                .ticket-section {{
+                    background-color: white;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 8px;
+                    border: 1px solid #e0e0e0;
+                }}
+                .footer {{
+                    text-align: center;
+                    padding: 25px;
+                    color: #666;
+                    font-size: 0.9em;
+                    background-color: #f0f0f0;
+                    border-radius: 0 0 8px 8px;
+                }}
+                .button {{
+                    display: inline-block;
+                    padding: 14px 35px;
+                    background-color: #4CAF50;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                    font-weight: bold;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🎉 Order Confirmed!</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px;">Thank you for your purchase, {order.buyer_name or 'valued customer'}!</p>
+            </div>
+
+            <div class="content">
+                <p style="font-size: 16px;">Your order has been confirmed and your tickets are attached to this email.</p>
+
+                <div class="order-summary">
+                    <h3 style="margin-top: 0; color: #333;">Order Summary</h3>
+                    <p><strong>Order Number:</strong> {order.order_number}</p>
+                    <p><strong>Event:</strong> {order.event.title}</p>
+                    <p><strong>Date:</strong> {order.event.start_date.strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+                    <p><strong>Venue:</strong> {order.event.venue_name}, {order.event.venue_city}</p>
+                    <p style="margin-bottom: 0;"><strong>Total Tickets:</strong> {total_tickets}</p>
+                </div>
+
+                <h3 class="section-title">📋 Ticket Breakdown</h3>
+                {summary_table}
+
+                <div style="margin: 20px 0; padding: 15px; background-color: white; border-radius: 5px; border: 1px solid #e0e0e0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Subtotal:</strong> ${order.subtotal}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>Service Fee:</strong> ${order.service_fee}</p>
+                    {f'<p style="margin: 0 0 10px 0;"><strong>Discount:</strong> -${order.discount_amount}</p>' if order.discount_amount > 0 else ''}
+                    <p style="margin: 15px 0 0 0; padding-top: 15px; border-top: 2px solid #4CAF50; font-size: 18px; font-weight: bold; color: #4CAF50;">
+                        Total Paid: ${order.total_amount}
+                    </p>
+                </div>
+
+                <h3 class="section-title">🎫 Your Tickets</h3>
+                <div class="info-box">
+                    <p style="margin: 0 0 10px 0;"><strong>Your tickets are attached to this email as PDF files.</strong></p>
+                    <p style="margin: 0;">Please present the QR code on each ticket for scanning at the event entrance.</p>
+                </div>
+
+                <div class="ticket-section">
+                    <h4 style="margin-top: 0;">Attached PDF Files:</h4>
+                    {pdf_list}
+                    <p style="margin-top: 20px; font-size: 13px; color: #666;">
+                        💡 <strong>Tip:</strong> You can print these tickets or show them on your mobile device at the event.
+                        Each ticket has a unique QR code that will be scanned once upon entry.
+                    </p>
+                </div>
+
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{settings.FRONTEND_URL}/orders/{order.id}" class="button">View Order Details</a>
+                </div>
+
+                <div class="info-box">
+                    <p style="margin: 0;"><strong>Important Reminders:</strong></p>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                        <li>Bring a valid ID to the event</li>
+                        <li>Arrive early to avoid queues</li>
+                        <li>Each ticket is valid for one entry only</li>
+                        <li>Screenshots of QR codes are accepted</li>
+                    </ul>
+                </div>
+
+                <p style="margin-top: 25px; font-size: 14px; color: #666;">
+                    <strong>Payment Confirmation:</strong><br>
+                    Payment Method: {order.payment_method.title()}<br>
+                    Transaction ID: {order.payment_id}<br>
+                    Paid At: {order.paid_at.strftime('%B %d, %Y at %I:%M %p') if order.paid_at else 'N/A'}
+                </p>
+            </div>
+
+            <div class="footer">
+                <p style="margin: 0 0 10px 0;">Have questions? We're here to help!</p>
+                <p style="margin: 0 0 15px 0;">📧 Email: support@easyticket.com | 📞 Phone: 1-800-EASYTICKET</p>
+                <p style="margin: 0; font-size: 12px;">&copy; 2025 EasyTicket. All rights reserved.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        # Plain text fallback
+        plain_message = f"""
+🎉 Order Confirmed! (Order #{order.order_number})
+
+Hi {order.buyer_name or 'valued customer'},
+
+Thank you for your purchase! Your tickets for {order.event.title} are attached to this email.
+
+ORDER SUMMARY
+=============
+Order Number: {order.order_number}
+Event: {order.event.title}
+Date: {order.event.start_date.strftime('%A, %B %d, %Y at %I:%M %p')}
+Venue: {order.event.venue_name}, {order.event.venue_city}
+
+TICKET BREAKDOWN
+================
+"""
+        for group in ticket_groups:
+            date_str = group["date"].strftime("%a, %b %d")
+            ticket_type = group["ticket_type"]
+            if group["tier_name"]:
+                ticket_type += f" - {group['tier_name']}"
+            if group["day_name"]:
+                ticket_type += f" - {group['day_name']}"
+            plain_message += (
+                f"{ticket_type} ({date_str}): {group['quantity']} ticket(s)\n"
+            )
+
+        plain_message += f"""
+TOTAL TICKETS: {total_tickets}
+
+PAYMENT DETAILS
+===============
+Subtotal: ${order.subtotal}
+Service Fee: ${order.service_fee}
+"""
+        if order.discount_amount > 0:
+            plain_message += f"Discount: -${order.discount_amount}\n"
+
+        plain_message += f"""Total Paid: ${order.total_amount}
+
+Payment Method: {order.payment_method.title()}
+Transaction ID: {order.payment_id}
+
+YOUR TICKETS
+============
+Your tickets are attached as PDF files. Each PDF is named for easy identification:
+"""
+        for group in ticket_groups:
+            plain_message += (
+                f"- {group['filename']} (Contains {group['quantity']} ticket(s))\n"
+            )
+
+        plain_message += f"""
+IMPORTANT REMINDERS
+===================
+- Present the QR code on each ticket at the event entrance
+- Bring a valid ID
+- Each ticket is valid for one entry only
+- Arrive early to avoid queues
+
+View your order online: {settings.FRONTEND_URL}/orders/{order.id}
+
+Questions? Contact us:
+Email: support@easyticket.com
+Phone: 1-800-EASYTICKET
+
+© 2025 EasyTicket. All rights reserved.
+        """
+
+        # Create email with attachments
+        email = EmailMessage(
             subject=subject,
-            message=plain_message,
+            body=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[order.buyer_email],
-            html_message=html_message,
-            fail_silently=False,
+            to=[order.buyer_email],
         )
+
+        # Set HTML content
+        email.content_subtype = "html"
+        email.body = html_message
+
+        # Attach all PDF files
+        for filename, pdf_buffer in pdf_attachments:
+            email.attach(filename, pdf_buffer.read(), "application/pdf")
+
+        # Send email
+        email.send(fail_silently=False)
+
         return True
+
     except Exception as e:
         print(f"Error sending order confirmation email to {order.buyer_email}: {e}")
+        import traceback
+
+        traceback.print_exc()
         return False
 
 

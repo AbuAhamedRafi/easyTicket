@@ -5,6 +5,7 @@ Supports tier-based pricing, day-based tickets, and combinations
 
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from Events.models import Event
@@ -253,3 +254,203 @@ class DayPass(models.Model):
     @property
     def is_sold_out(self):
         return self.available_quantity == 0
+
+
+class Ticket(models.Model):
+    """
+    Individual ticket instance with unique QR code
+    Generated when order is confirmed
+    """
+
+    STATUS_CHOICES = [
+        ("active", "Active"),  # Valid, not yet used
+        ("used", "Used"),  # Scanned and used at event
+        ("cancelled", "Cancelled"),  # Order cancelled/refunded
+        ("expired", "Expired"),  # Event date passed
+    ]
+
+    # Primary fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_number = models.CharField(
+        max_length=30,
+        unique=True,
+        blank=True,
+        help_text="Human-readable ticket number (auto-generated)",
+    )
+
+    # Relationships
+    order_item = models.ForeignKey(
+        "Orders.OrderItem",
+        on_delete=models.CASCADE,
+        related_name="tickets",
+        help_text="The order item this ticket belongs to",
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="tickets",
+        help_text="Event this ticket is for",
+    )
+    ticket_type = models.ForeignKey(
+        TicketType,
+        on_delete=models.PROTECT,
+        related_name="tickets",
+        help_text="Type of ticket",
+    )
+    ticket_tier = models.ForeignKey(
+        TicketTier,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="tickets",
+        help_text="Specific tier if tiered pricing",
+    )
+    day_pass = models.ForeignKey(
+        DayPass,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="tickets",
+        help_text="Specific day pass if day-based pricing",
+    )
+
+    # Ticket Details (snapshot at time of creation)
+    ticket_name = models.CharField(
+        max_length=255, help_text="Ticket type name at time of creation"
+    )
+    tier_name = models.CharField(
+        max_length=100, blank=True, help_text="Tier name if applicable"
+    )
+    day_name = models.CharField(
+        max_length=100, blank=True, help_text="Day pass name if applicable"
+    )
+    event_date = models.DateTimeField(help_text="Event date/time (snapshot)")
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Price paid for this ticket",
+    )
+
+    # QR Code
+    qr_code_data = models.CharField(
+        max_length=255,
+        unique=True,
+        blank=True,
+        help_text="Unique QR code data for verification",
+    )
+
+    # Status & Verification
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
+    is_used = models.BooleanField(default=False, help_text="Has ticket been scanned?")
+    used_at = models.DateTimeField(
+        null=True, blank=True, help_text="When ticket was scanned"
+    )
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scanned_tickets",
+        help_text="Staff member who scanned ticket",
+    )
+
+    # Attendee Information (optional)
+    attendee_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Name of person attending with this ticket",
+    )
+    attendee_email = models.EmailField(
+        blank=True, help_text="Email of person attending"
+    )
+    attendee_phone = models.CharField(
+        max_length=15, blank=True, help_text="Phone of person attending"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Ticket"
+        verbose_name_plural = "Tickets"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["ticket_number"]),
+            models.Index(fields=["qr_code_data"]),
+            models.Index(fields=["event", "status"]),
+            models.Index(fields=["order_item"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticket_number} - {self.ticket_name}"
+
+    def save(self, *args, **kwargs):
+        """Auto-generate ticket number and QR code data"""
+        if not self.ticket_number:
+            # Generate ticket number: TKT-YYYYMMDD-XXXX
+            from datetime import datetime
+
+            date_str = datetime.now().strftime("%Y%m%d")
+            # Get count of today's tickets + 1
+            today_start = timezone.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            count = Ticket.objects.filter(created_at__gte=today_start).count() + 1
+            self.ticket_number = f"TKT-{date_str}-{count:05d}"
+
+        if not self.qr_code_data:
+            # Generate unique QR code data combining ticket ID and secret
+            import hashlib
+
+            secret = f"{self.id}{self.ticket_number}{timezone.now().isoformat()}"
+            self.qr_code_data = hashlib.sha256(secret.encode()).hexdigest()
+
+        # Set ticket details from related objects if not set
+        if not self.ticket_name:
+            self.ticket_name = self.ticket_type.name
+        if self.ticket_tier and not self.tier_name:
+            self.tier_name = self.ticket_tier.name
+        if self.day_pass and not self.day_name:
+            self.day_name = self.day_pass.name
+        if not self.event_date:
+            self.event_date = self.event.start_date
+
+        super().save(*args, **kwargs)
+
+    @property
+    def full_ticket_name(self):
+        """Get full ticket name with tier/day info"""
+        name = self.ticket_name
+        if self.tier_name:
+            name += f" - {self.tier_name}"
+        if self.day_name:
+            name += f" - {self.day_name}"
+        return name
+
+    @property
+    def is_valid(self):
+        """Check if ticket is valid for use"""
+        if self.status != "active":
+            return False
+        if self.is_used:
+            return False
+        # Check if event hasn't ended yet
+        if self.event.end_date and timezone.now() > self.event.end_date:
+            return False
+        return True
+
+    def mark_as_used(self, scanned_by_user=None):
+        """Mark ticket as used/scanned"""
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.status = "used"
+        if scanned_by_user:
+            self.scanned_by = scanned_by_user
+        self.save(update_fields=["is_used", "used_at", "status", "scanned_by"])
+
+    def cancel(self):
+        """Cancel ticket (e.g., when order is refunded)"""
+        self.status = "cancelled"
+        self.save(update_fields=["status"])
