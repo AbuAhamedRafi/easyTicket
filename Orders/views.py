@@ -14,6 +14,7 @@ from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from django.conf import settings
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from Common.throttling import PaymentThrottle
 
 from .models import Order, OrderItem
 from .serializers import (
@@ -271,7 +272,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         tags=["Orders", "Payments"],
         responses={200: dict, 400: dict},
     )
-    @action(detail=True, methods=["post"], url_path="create-payment-intent")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="create-payment-intent",
+        throttle_classes=[PaymentThrottle],  # Rate limit: 10 requests per hour
+    )
     def create_payment_intent(self, request, pk=None):
         """
         Create Stripe Payment Intent for an order
@@ -425,15 +431,28 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         order = self.get_object()
 
+        # Validate order can be refunded
+        if order.status in ["refunded", "cancelled", "failed"]:
+            return Response(
+                {
+                    "error": f"Cannot refund order with status: {order.status}",
+                    "current_status": order.status,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if not order.payment_id:
             return Response(
                 {"error": "No payment found for this order"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if order.status not in ["confirmed"]:
+        if order.status != "confirmed":
             return Response(
-                {"error": "Only confirmed orders can be refunded"},
+                {
+                    "error": "Only confirmed orders can be refunded",
+                    "current_status": order.status,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

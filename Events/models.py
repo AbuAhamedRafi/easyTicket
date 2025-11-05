@@ -7,6 +7,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
+from Common.validators import ImageSizeValidator, ImageExtensionValidator
 
 
 class EventCategory(models.Model):
@@ -96,10 +97,16 @@ class Event(models.Model):
 
     # Media
     banner_image = models.ImageField(
-        upload_to="events/banners/%Y/%m/", null=True, blank=True
+        upload_to="events/banners/%Y/%m/",
+        null=True,
+        blank=True,
+        validators=[ImageSizeValidator(max_size_mb=5), ImageExtensionValidator()],
     )
     thumbnail_image = models.ImageField(
-        upload_to="events/thumbnails/%Y/%m/", null=True, blank=True
+        upload_to="events/thumbnails/%Y/%m/",
+        null=True,
+        blank=True,
+        validators=[ImageSizeValidator(max_size_mb=5), ImageExtensionValidator()],
     )
 
     # Capacity & Status

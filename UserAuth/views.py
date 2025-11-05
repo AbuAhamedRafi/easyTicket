@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
+from Common.throttling import AuthThrottle
 from .serializers import (
     UserRegistrationSerializer,
     EmailVerificationSerializer,
@@ -27,6 +28,7 @@ class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [AuthThrottle]  # Rate limit: 5 requests per hour
 
     @extend_schema(
         summary="Register a new user",
@@ -93,6 +95,7 @@ class LoginView(generics.GenericAPIView):
 
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [AuthThrottle]  # Rate limit: 5 requests per hour
 
     @extend_schema(
         summary="User login",

@@ -11,6 +11,7 @@ from django.core.validators import MinValueValidator
 from django.utils import timezone
 from Events.models import Event
 from Tickets.models import TicketType, TicketTier, DayPass
+from Common.validators import validate_phone_number
 
 
 class Order(models.Model):
@@ -94,7 +95,9 @@ class Order(models.Model):
 
     # Customer Information
     buyer_email = models.EmailField()
-    buyer_phone = models.CharField(max_length=20, blank=True)
+    buyer_phone = models.CharField(
+        max_length=11, blank=True, validators=[validate_phone_number]
+    )
     buyer_name = models.CharField(max_length=255, blank=True)
 
     # Promo/Discount
