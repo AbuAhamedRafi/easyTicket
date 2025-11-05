@@ -74,7 +74,7 @@ class ImageExtensionValidator:
 
     def __init__(self, allowed_extensions=None):
         if allowed_extensions is None:
-            allowed_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+            allowed_extensions = [".jpg", ".jpeg", ".png"]
         self.allowed_extensions = [ext.lower() for ext in allowed_extensions]
 
     def __call__(self, image):

@@ -17,18 +17,14 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # API routes
     path("api/auth/", include("UserAuth.urls")),
     path("api/events/", include("Events.urls")),
     path("api/tickets/", include("Tickets.urls")),
-    path("api/orders/", include("Orders.urls")),  # Includes payment endpoints
-    path("api/webhooks/", include("Orders.webhook_urls")),  # Webhook endpoints
+    path("api/orders/", include("Orders.urls")),
+    path("api/webhooks/", include("Orders.webhook_urls")),
 ]
 
 # Serve media and static files in development
