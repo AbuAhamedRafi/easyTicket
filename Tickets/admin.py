@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import TicketType, TicketTier, DayPass
+from .models import TicketType, TicketTier, DayPass, Ticket
 
 
 class TicketTierInline(admin.TabularInline):
@@ -194,3 +194,137 @@ class DayPassAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+
+@admin.register(Ticket)
+class TicketAdmin(admin.ModelAdmin):
+    """Admin interface for individual tickets"""
+
+    list_display = [
+        "ticket_number",
+        "event",
+        "ticket_name",
+        "tier_name",
+        "day_name",
+        "status",
+        "is_used",
+        "attendee_name",
+        "created_at",
+    ]
+    list_filter = [
+        "status",
+        "is_used",
+        "event",
+        "created_at",
+    ]
+    search_fields = [
+        "ticket_number",
+        "qr_code_data",
+        "attendee_name",
+        "attendee_email",
+        "order_item__order__order_number",
+    ]
+    readonly_fields = [
+        "id",
+        "ticket_number",
+        "qr_code_data",
+        "order_item",
+        "event",
+        "ticket_type",
+        "ticket_tier",
+        "day_pass",
+        "ticket_name",
+        "tier_name",
+        "day_name",
+        "event_date",
+        "price",
+        "is_used",
+        "used_at",
+        "scanned_by",
+        "created_at",
+        "updated_at",
+        "is_valid",
+    ]
+
+    fieldsets = (
+        (
+            "Ticket Information",
+            {
+                "fields": (
+                    "id",
+                    "ticket_number",
+                    "qr_code_data",
+                )
+            },
+        ),
+        (
+            "Order & Event Details",
+            {
+                "fields": (
+                    "order_item",
+                    "event",
+                    "event_date",
+                    "ticket_type",
+                    "ticket_tier",
+                    "day_pass",
+                )
+            },
+        ),
+        (
+            "Ticket Details",
+            {
+                "fields": (
+                    "ticket_name",
+                    "tier_name",
+                    "day_name",
+                    "price",
+                )
+            },
+        ),
+        (
+            "Status & Verification",
+            {
+                "fields": (
+                    "status",
+                    "is_valid",
+                    "is_used",
+                    "used_at",
+                    "scanned_by",
+                )
+            },
+        ),
+        (
+            "Attendee Information",
+            {
+                "fields": (
+                    "attendee_name",
+                    "attendee_email",
+                    "attendee_phone",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def has_add_permission(self, request):
+        """Prevent manual ticket creation - tickets are auto-generated"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Prevent ticket deletion"""
+        return request.user.is_superuser
+
+    actions = ["mark_as_cancelled"]
+
+    @admin.action(description="Mark selected tickets as cancelled")
+    def mark_as_cancelled(self, request, queryset):
+        """Bulk action to cancel tickets"""
+        count = queryset.filter(status="active").update(status="cancelled")
+        self.message_user(request, f"{count} tickets marked as cancelled.")

@@ -1,13 +1,16 @@
 """
 Signals for Orders app
-Handles ticket inventory updates when orders are confirmed/cancelled
+Handles ticket inventory updates and ticket generation when orders are confirmed/cancelled
 """
 
 from django.db.models.signals import post_save, pre_save, pre_delete
 from django.dispatch import receiver
 from django.db import transaction
+import logging
 
 from .models import Order, OrderItem
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender=Order)
@@ -44,9 +47,10 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
     if old_status == new_status:
         return
 
-    # If status changed to 'confirmed', increase sold quantities
+    # If status changed to 'confirmed', increase sold quantities AND generate tickets
     if old_status != "confirmed" and new_status == "confirmed":
         with transaction.atomic():
+            # 1. Update inventory
             for item in instance.items.select_related(
                 "ticket_type", "ticket_tier", "day_pass"
             ).all():
@@ -70,11 +74,37 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
                         quantity_sold=F("quantity_sold") + item.quantity
                     )
 
-    # If status changed from 'confirmed' to 'cancelled'/'refunded', restore inventory
+            # 2. Generate individual tickets
+            from Tickets.models import Ticket
+
+            for item in instance.items.select_related(
+                "ticket_type", "ticket_tier", "day_pass", "order__event"
+            ).all():
+                # Create individual ticket for each quantity
+                for i in range(item.quantity):
+                    Ticket.objects.create(
+                        order_item=item,
+                        event=item.order.event,
+                        ticket_type=item.ticket_type,
+                        ticket_tier=item.ticket_tier,
+                        day_pass=item.day_pass,
+                        ticket_name=item.ticket_name,
+                        tier_name=item.tier_name,
+                        day_name=item.day_name,
+                        event_date=item.order.event.start_date,
+                        price=item.unit_price,
+                        status="active",
+                    )
+
+            logger.info(
+                f"Generated {instance.total_tickets} individual tickets for order {instance.order_number}"
+            )
+
+    # If status changed from 'confirmed' to 'cancelled'/'refunded', restore inventory AND cancel tickets
     elif old_status == "confirmed" and new_status in ["cancelled", "refunded"]:
         with transaction.atomic():
             from django.db.models import F
-            from Tickets.models import TicketType, TicketTier, DayPass
+            from Tickets.models import TicketType, TicketTier, DayPass, Ticket
 
             for item in instance.items.select_related(
                 "ticket_type", "ticket_tier", "day_pass"
@@ -95,6 +125,15 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
                     DayPass.objects.filter(pk=item.day_pass.pk).update(
                         quantity_sold=F("quantity_sold") - item.quantity
                     )
+
+            # Cancel all tickets for this order
+            cancelled_count = Ticket.objects.filter(
+                order_item__order=instance, status="active"
+            ).update(status="cancelled")
+
+            logger.info(
+                f"Cancelled {cancelled_count} tickets for order {instance.order_number}"
+            )
 
 
 @receiver(pre_delete, sender=Order)

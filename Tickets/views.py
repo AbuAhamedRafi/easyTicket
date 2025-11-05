@@ -11,16 +11,19 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import TicketType, TicketTier, DayPass
+from .models import TicketType, TicketTier, DayPass, Ticket
 from .serializers import (
     TicketTypeListSerializer,
     TicketTypeDetailSerializer,
     TicketTypeCreateUpdateSerializer,
     TicketTierSerializer,
     DayPassSerializer,
+    TicketSerializer,
+    TicketVerificationSerializer,
 )
 from .permissions import IsEventOrganizer, IsEventOrganizerOrReadOnly
 from Events.permissions import IsOrganizer
@@ -255,4 +258,129 @@ class DayPassViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["ticket_type", "is_all_days"]
     ordering_fields = ["day_number", "price", "date"]
+
+
+# ==================== Individual Ticket ViewSet ====================
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user's tickets",
+        description="Get all tickets for the authenticated user",
+        tags=["My Tickets"],
+    ),
+    retrieve=extend_schema(
+        summary="Get ticket details",
+        description="Get detailed information about a specific ticket",
+        tags=["My Tickets"],
+    ),
+)
+class TicketViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for individual user tickets
+    - List: Get all tickets for authenticated user
+    - Retrieve: Get details of a specific ticket
+    - verify: Verify and scan a ticket (staff/organizer only)
+    """
+
+    serializer_class = TicketSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["status", "is_used", "event"]
+    ordering_fields = ["created_at", "event_date"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        """Get tickets for current user (or all for staff)"""
+        user = self.request.user
+
+        if user.is_staff or user.user_type == "organizer":
+            # Staff and organizers can see all tickets (filtered by their events)
+            return Ticket.objects.select_related(
+                "event", "ticket_type", "ticket_tier", "day_pass", "order_item__order"
+            ).all()
+
+        # Regular users see only their tickets
+        return Ticket.objects.filter(order_item__order__user=user).select_related(
+            "event", "ticket_type", "ticket_tier", "day_pass", "order_item__order"
+        )
+
+    @extend_schema(
+        summary="Verify and scan ticket",
+        description="Verify a ticket's QR code and mark it as used. Staff/Organizer only.",
+        tags=["Ticket Verification"],
+        request=TicketVerificationSerializer,
+        responses={200: TicketSerializer, 400: dict},
+    )
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def verify(self, request):
+        """
+        Verify a ticket via QR code scan
+
+        POST /api/tickets/verify/
+        Body: {"qr_code_data": "hash..."}
+
+        Returns ticket details if valid
+        Marks ticket as used if successful
+        """
+        # Only staff and organizers can scan tickets
+        if not (request.user.is_staff or request.user.user_type == "organizer"):
+            return Response(
+                {"error": "Only staff and event organizers can scan tickets"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = TicketVerificationSerializer(
+            data=request.data, context={"scanner": request.user}
+        )
+
+        if serializer.is_valid():
+            # Mark ticket as used
+            ticket = serializer.save()
+
+            # Return ticket details
+            return Response(
+                {
+                    "success": True,
+                    "message": "Ticket verified and marked as used",
+                    "ticket": TicketSerializer(ticket).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            # Return validation errors
+            return Response(
+                {
+                    "success": False,
+                    "error": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @extend_schema(
+        summary="Get ticket statistics",
+        description="Get statistics about user's tickets",
+        tags=["My Tickets"],
+    )
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        """Get ticket statistics for user"""
+        user = request.user
+        tickets = Ticket.objects.filter(order_item__order__user=user)
+
+        stats = {
+            "total_tickets": tickets.count(),
+            "active_tickets": tickets.filter(status="active", is_used=False).count(),
+            "used_tickets": tickets.filter(is_used=True).count(),
+            "cancelled_tickets": tickets.filter(status="cancelled").count(),
+            "upcoming_events": tickets.filter(
+                status="active", is_used=False, event__start_date__gte=timezone.now()
+            )
+            .values_list("event", flat=True)
+            .distinct()
+            .count(),
+        }
+
+        return Response(stats)
+
     ordering = ["day_number"]
