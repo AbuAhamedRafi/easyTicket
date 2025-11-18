@@ -170,7 +170,14 @@ def group_tickets_by_type(order):
     # Get all tickets for this order
     tickets = (
         Ticket.objects.filter(order_item__order=order)
-        .select_related("event", "ticket_type", "ticket_tier", "day_pass", "order_item")
+        .select_related(
+            "event",
+            "ticket_type",
+            "ticket_tier",
+            "day_pass",
+            "day_tier_price",
+            "order_item",
+        )
         .order_by("event_date", "ticket_name", "tier_name", "day_name")
     )
 

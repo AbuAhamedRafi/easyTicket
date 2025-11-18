@@ -149,7 +149,11 @@ class LoginSerializer(serializers.Serializer):
         # Check if email is verified
         if not user.is_email_verified:
             raise serializers.ValidationError(
-                {"email": "Please verify your email before logging in"}
+                {
+                    "non_field_errors": [
+                        "Please verify your email first. Check your inbox for the verification link or request a new one."
+                    ]
+                }
             )
 
         # Authenticate user

@@ -4,7 +4,7 @@ Serializers for Tickets app
 
 from rest_framework import serializers
 from django.utils import timezone
-from .models import TicketType, TicketTier, DayPass, Ticket
+from .models import TicketType, TicketTier, DayPass, DayTierPrice, Ticket
 
 
 class TicketTierSerializer(serializers.ModelSerializer):
@@ -84,6 +84,62 @@ class DayPassSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class DayTierPriceSerializer(serializers.ModelSerializer):
+    """Serializer for Day + Tier pricing combinations"""
+
+    available_quantity = serializers.ReadOnlyField()
+    is_sold_out = serializers.ReadOnlyField()
+    is_on_sale = serializers.ReadOnlyField()
+
+    class Meta:
+        model = DayTierPrice
+        fields = [
+            "id",
+            "day_number",
+            "day_name",
+            "date",
+            "tier_number",
+            "tier_name",
+            "price",
+            "quantity",
+            "quantity_sold",
+            "available_quantity",
+            "is_sold_out",
+            "is_on_sale",
+            "is_active",
+            "sales_start",
+            "sales_end",
+            "created_at",
+        ]
+        read_only_fields = ["id", "quantity_sold", "created_at"]
+
+    def validate(self, attrs):
+        """Validate day tier price data"""
+        sales_start = attrs.get("sales_start")
+        sales_end = attrs.get("sales_end")
+
+        if sales_start and sales_end and sales_end <= sales_start:
+            raise serializers.ValidationError(
+                {"sales_end": "Sales end date must be after sales start date"}
+            )
+
+        # Validate day and tier numbers are positive
+        day_number = attrs.get("day_number")
+        tier_number = attrs.get("tier_number")
+
+        if day_number and day_number < 1:
+            raise serializers.ValidationError(
+                {"day_number": "Day number must be positive"}
+            )
+
+        if tier_number and tier_number < 1:
+            raise serializers.ValidationError(
+                {"tier_number": "Tier number must be positive"}
+            )
+
+        return attrs
+
+
 class TicketTypeListSerializer(serializers.ModelSerializer):
     """Serializer for listing ticket types (minimal info)"""
 
@@ -123,6 +179,7 @@ class TicketTypeDetailSerializer(serializers.ModelSerializer):
     event_slug = serializers.CharField(source="event.slug", read_only=True)
     tiers = TicketTierSerializer(many=True, read_only=True)
     day_passes = DayPassSerializer(many=True, read_only=True)
+    day_tier_prices = DayTierPriceSerializer(many=True, read_only=True)
     available_quantity = serializers.ReadOnlyField()
     is_sold_out = serializers.ReadOnlyField()
     is_on_sale = serializers.ReadOnlyField()
@@ -139,6 +196,7 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
 
     tiers = TicketTierSerializer(many=True, required=False)
     day_passes = DayPassSerializer(many=True, required=False)
+    day_tier_prices = DayTierPriceSerializer(many=True, required=False)
 
     class Meta:
         model = TicketType
@@ -157,6 +215,7 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
             "is_active",
             "tiers",
             "day_passes",
+            "day_tier_prices",
         ]
 
     def validate(self, attrs):
@@ -200,34 +259,40 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        """Create ticket type with nested tiers/days"""
+        """Create ticket type with nested tiers/days/day_tier_prices"""
         tiers_data = validated_data.pop("tiers", [])
         day_passes_data = validated_data.pop("day_passes", [])
+        day_tier_prices_data = validated_data.pop("day_tier_prices", [])
 
         ticket_type = TicketType.objects.create(**validated_data)
 
-        # Create tiers
+        # Create tiers (for 'tiered' pricing)
         for tier_data in tiers_data:
             TicketTier.objects.create(ticket_type=ticket_type, **tier_data)
 
-        # Create day passes
+        # Create day passes (for 'day_based' pricing)
         for day_pass_data in day_passes_data:
             DayPass.objects.create(ticket_type=ticket_type, **day_pass_data)
+
+        # Create day tier prices (for 'tier_and_day' pricing)
+        for day_tier_data in day_tier_prices_data:
+            DayTierPrice.objects.create(ticket_type=ticket_type, **day_tier_data)
 
         return ticket_type
 
     def update(self, instance, validated_data):
-        """Update ticket type (tiers/days updated separately)"""
+        """Update ticket type (tiers/days/day_tier_prices updated separately)"""
         tiers_data = validated_data.pop("tiers", None)
         day_passes_data = validated_data.pop("day_passes", None)
+        day_tier_prices_data = validated_data.pop("day_tier_prices", None)
 
         # Update ticket type fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Note: For simplicity, tiers and day passes should be updated via separate endpoints
-        # This prevents accidental deletion of existing tiers/days
+        # Note: For simplicity, tiers, day passes, and day_tier_prices should be updated via separate endpoints
+        # This prevents accidental deletion of existing pricing options
 
         return instance
 

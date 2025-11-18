@@ -50,7 +50,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "drf_spectacular",
     "drf_spectacular_sidecar",
-    "django_filters"
+    "django_filters",
 ]
 LOCAL_APPS = [
     "Common",
@@ -157,7 +157,8 @@ AUTH_USER_MODEL = "UserAuth.User"
 # REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "Common.authentication.CookieJWTAuthentication",  # Cookie-based JWT auth
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # Fallback to header
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
@@ -186,6 +187,14 @@ SIMPLE_JWT = {
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
+    # Cookie-based authentication
+    "AUTH_COOKIE": "access_token",  # Cookie name for access token
+    "AUTH_COOKIE_REFRESH": "refresh_token",  # Cookie name for refresh token
+    "AUTH_COOKIE_SECURE": False,  # Set to True in production with HTTPS
+    "AUTH_COOKIE_HTTP_ONLY": True,  # Prevent JavaScript access
+    "AUTH_COOKIE_PATH": "/",  # Cookie available for entire domain
+    "AUTH_COOKIE_SAMESITE": "Lax",  # CSRF protection
+    "AUTH_COOKIE_DOMAIN": None,  # Use default domain
 }
 
 # CORS Configuration
@@ -194,8 +203,21 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
+    "http://localhost:3001",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+CORS_EXPOSE_HEADERS = ["Content-Type", "X-CSRFToken"]
 
 # Email Configuration (Gmail SMTP)
 EMAIL_BACKEND = config(

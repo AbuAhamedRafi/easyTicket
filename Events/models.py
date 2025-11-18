@@ -70,6 +70,26 @@ class Event(models.Model):
         related_name="events",
     )
 
+    # Pricing Configuration
+    PRICING_TYPE_CHOICES = [
+        ("simple", "Simple Pricing"),  # Each ticket is separate with own price
+        ("tiered", "Tiered Pricing"),  # VIP, General, Student, etc. as separate tickets
+        (
+            "day_based",
+            "Day-Based Pricing",
+        ),  # Day 1, Day 2, All Days as separate tickets
+        (
+            "tier_and_day",
+            "Tiered + Day-Based",
+        ),  # Day 1 VIP, Day 1 General, etc. as separate tickets
+    ]
+    pricing_type = models.CharField(
+        max_length=20,
+        choices=PRICING_TYPE_CHOICES,
+        default="simple",
+        help_text="Pricing structure for tickets in this event",
+    )
+
     # Location & Timing
     venue_name = models.CharField(max_length=255)
     venue_address = models.TextField()

@@ -18,10 +18,10 @@ class TicketType(models.Model):
     """
 
     PRICING_TYPE_CHOICES = [
-        ("simple", "Simple Pricing"),  # Single price
-        ("tiered", "Tiered Pricing"),  # Tier 1, Tier 2, Tier 3
-        ("day_based", "Day-Based Pricing"),  # Day 1, Day 2, All Days
-        ("tier_and_day", "Tiered + Day-Based"),  # Combination
+        ("simple", "Simple Pricing"),  # Single ticket type with one price
+        ("tiered", "Tiered Pricing"),  # Multiple tiers (VIP, General, etc.)
+        ("day_based", "Day-Based Pricing"),  # Multiple days (Day 1, Day 2, All Days)
+        ("tier_and_day", "Tiered + Day-Based"),  # Matrix: Each day has multiple tiers
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -140,11 +140,9 @@ class TicketType(models.Model):
             days = self.day_passes.all()
             return min([d.price for d in days]) if days else 0
         elif self.pricing_type == "tier_and_day":
-            # Get min from both tiers and days
-            tier_prices = [t.price for t in self.tiers.all()]
-            day_prices = [d.price for d in self.day_passes.all()]
-            all_prices = tier_prices + day_prices
-            return min(all_prices) if all_prices else 0
+            # Get min from day_tier_prices (the combination matrix)
+            day_tier_prices = self.day_tier_prices.all()
+            return min([dt.price for dt in day_tier_prices]) if day_tier_prices else 0
         return 0
 
 
@@ -201,6 +199,8 @@ class TicketTier(models.Model):
 class DayPass(models.Model):
     """
     Day-based tickets for multi-day events (Day 1, Day 2, All Days)
+    Used for 'day_based' pricing type only
+    For 'tier_and_day' pricing, use DayTierPrice model instead
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -256,6 +256,118 @@ class DayPass(models.Model):
         return self.available_quantity == 0
 
 
+class DayTierPrice(models.Model):
+    """
+    Combination of Day + Tier pricing for multi-day events with tier levels
+    Used ONLY for 'tier_and_day' pricing type
+
+    Example Structure:
+    - Day 1 + VIP (Tier 1) = $150
+    - Day 1 + General (Tier 2) = $75
+    - Day 2 + VIP (Tier 1) = $150
+    - Day 2 + General (Tier 2) = $75
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_type = models.ForeignKey(
+        TicketType, on_delete=models.CASCADE, related_name="day_tier_prices"
+    )
+
+    # Day Information
+    day_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)], help_text="Day number (1, 2, 3, etc.)"
+    )
+    day_name = models.CharField(
+        max_length=50, help_text="E.g., Day 1, Day 2, Friday, Saturday"
+    )
+    date = models.DateField(
+        null=True, blank=True, help_text="Specific date for this day"
+    )
+
+    # Tier Information
+    tier_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Tier level (1 = VIP/highest, 2 = General, etc.)",
+    )
+    tier_name = models.CharField(
+        max_length=50, help_text="E.g., VIP, General Admission, Regular"
+    )
+
+    # Pricing
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Price for this Day + Tier combination",
+    )
+
+    # Availability
+    quantity = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Number of tickets available for this Day + Tier combination",
+    )
+    quantity_sold = models.PositiveIntegerField(
+        default=0, help_text="Number sold for this combination"
+    )
+
+    # Sales Period (optional, overrides ticket_type dates)
+    sales_start = models.DateTimeField(null=True, blank=True)
+    sales_end = models.DateTimeField(null=True, blank=True)
+
+    # Status
+    is_active = models.BooleanField(
+        default=True, help_text="Is this combination currently available?"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Day + Tier Price"
+        verbose_name_plural = "Day + Tier Prices"
+        ordering = ["ticket_type", "day_number", "tier_number"]
+        unique_together = [
+            ["ticket_type", "day_number", "tier_number"],
+            ["ticket_type", "day_name", "tier_name"],
+        ]
+        indexes = [
+            models.Index(fields=["ticket_type", "day_number", "tier_number"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticket_type.name} - {self.day_name} - {self.tier_name}"
+
+    @property
+    def available_quantity(self):
+        """Get number of available tickets for this combination"""
+        return max(0, self.quantity - self.quantity_sold)
+
+    @property
+    def is_sold_out(self):
+        """Check if this Day+Tier combination is sold out"""
+        return self.available_quantity == 0
+
+    @property
+    def is_on_sale(self):
+        """Check if this Day+Tier combination is currently on sale"""
+        if not self.is_active:
+            return False
+
+        if self.is_sold_out:
+            return False
+
+        now = timezone.now()
+
+        if self.sales_start and now < self.sales_start:
+            return False
+
+        if self.sales_end and now > self.sales_end:
+            return False
+
+        return True
+
+
 class Ticket(models.Model):
     """
     Individual ticket instance with unique QR code
@@ -297,13 +409,15 @@ class Ticket(models.Model):
         related_name="tickets",
         help_text="Type of ticket",
     )
+
+    # Pricing Model References (only ONE will be set based on pricing_type)
     ticket_tier = models.ForeignKey(
         TicketTier,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="tickets",
-        help_text="Specific tier if tiered pricing",
+        help_text="For 'tiered' pricing: Specific tier (VIP, General, etc.)",
     )
     day_pass = models.ForeignKey(
         DayPass,
@@ -311,7 +425,15 @@ class Ticket(models.Model):
         null=True,
         blank=True,
         related_name="tickets",
-        help_text="Specific day pass if day-based pricing",
+        help_text="For 'day_based' pricing: Specific day pass",
+    )
+    day_tier_price = models.ForeignKey(
+        "DayTierPrice",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="tickets",
+        help_text="For 'tier_and_day' pricing: Specific Day+Tier combination",
     )
 
     # Ticket Details (snapshot at time of creation)
@@ -410,10 +532,19 @@ class Ticket(models.Model):
         # Set ticket details from related objects if not set
         if not self.ticket_name:
             self.ticket_name = self.ticket_type.name
+
+        # Handle different pricing types
         if self.ticket_tier and not self.tier_name:
             self.tier_name = self.ticket_tier.name
         if self.day_pass and not self.day_name:
             self.day_name = self.day_pass.name
+        if self.day_tier_price:
+            # For tier_and_day pricing, extract both tier and day info
+            if not self.tier_name:
+                self.tier_name = self.day_tier_price.tier_name
+            if not self.day_name:
+                self.day_name = self.day_tier_price.day_name
+
         if not self.event_date:
             self.event_date = self.event.start_date
 

@@ -52,33 +52,44 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
         with transaction.atomic():
             # 1. Update inventory
             for item in instance.items.select_related(
-                "ticket_type", "ticket_tier", "day_pass"
+                "ticket_type", "ticket_tier", "day_pass", "day_tier_price"
             ).all():
                 # Update ticket type sold count using F() expression for atomic update
                 from django.db.models import F
-                from Tickets.models import TicketType, TicketTier, DayPass
+                from Tickets.models import TicketType, TicketTier, DayPass, DayTierPrice
 
                 TicketType.objects.filter(pk=item.ticket_type.pk).update(
                     quantity_sold=F("quantity_sold") + item.quantity
                 )
 
-                # Update tier sold count if applicable
-                if item.ticket_tier:
-                    TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                # Update day_tier_price sold count if applicable (for tier_and_day pricing)
+                if item.day_tier_price:
+                    DayTierPrice.objects.filter(pk=item.day_tier_price.pk).update(
                         quantity_sold=F("quantity_sold") + item.quantity
                     )
+                # Otherwise update individual tier and day_pass
+                else:
+                    # Update tier sold count if applicable
+                    if item.ticket_tier:
+                        TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                            quantity_sold=F("quantity_sold") + item.quantity
+                        )
 
-                # Update day pass sold count if applicable
-                if item.day_pass:
-                    DayPass.objects.filter(pk=item.day_pass.pk).update(
-                        quantity_sold=F("quantity_sold") + item.quantity
-                    )
+                    # Update day pass sold count if applicable
+                    if item.day_pass:
+                        DayPass.objects.filter(pk=item.day_pass.pk).update(
+                            quantity_sold=F("quantity_sold") + item.quantity
+                        )
 
             # 2. Generate individual tickets
             from Tickets.models import Ticket
 
             for item in instance.items.select_related(
-                "ticket_type", "ticket_tier", "day_pass", "order__event"
+                "ticket_type",
+                "ticket_tier",
+                "day_pass",
+                "day_tier_price",
+                "order__event",
             ).all():
                 # Create individual ticket for each quantity
                 for i in range(item.quantity):
@@ -88,6 +99,7 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
                         ticket_type=item.ticket_type,
                         ticket_tier=item.ticket_tier,
                         day_pass=item.day_pass,
+                        day_tier_price=item.day_tier_price,
                         ticket_name=item.ticket_name,
                         tier_name=item.tier_name,
                         day_name=item.day_name,
@@ -104,27 +116,40 @@ def update_ticket_inventory_on_order_save(sender, instance, created, **kwargs):
     elif old_status == "confirmed" and new_status in ["cancelled", "refunded"]:
         with transaction.atomic():
             from django.db.models import F
-            from Tickets.models import TicketType, TicketTier, DayPass, Ticket
+            from Tickets.models import (
+                TicketType,
+                TicketTier,
+                DayPass,
+                DayTierPrice,
+                Ticket,
+            )
 
             for item in instance.items.select_related(
-                "ticket_type", "ticket_tier", "day_pass"
+                "ticket_type", "ticket_tier", "day_pass", "day_tier_price"
             ).all():
                 # Restore ticket type quantity using F() expression
                 TicketType.objects.filter(pk=item.ticket_type.pk).update(
                     quantity_sold=F("quantity_sold") - item.quantity
                 )
 
-                # Restore tier quantity if applicable
-                if item.ticket_tier:
-                    TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                # Restore day_tier_price quantity if applicable
+                if item.day_tier_price:
+                    DayTierPrice.objects.filter(pk=item.day_tier_price.pk).update(
                         quantity_sold=F("quantity_sold") - item.quantity
                     )
+                # Otherwise restore individual tier and day_pass
+                else:
+                    # Restore tier quantity if applicable
+                    if item.ticket_tier:
+                        TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                            quantity_sold=F("quantity_sold") - item.quantity
+                        )
 
-                # Restore day pass quantity if applicable
-                if item.day_pass:
-                    DayPass.objects.filter(pk=item.day_pass.pk).update(
-                        quantity_sold=F("quantity_sold") - item.quantity
-                    )
+                    # Restore day pass quantity if applicable
+                    if item.day_pass:
+                        DayPass.objects.filter(pk=item.day_pass.pk).update(
+                            quantity_sold=F("quantity_sold") - item.quantity
+                        )
 
             # Cancel all tickets for this order
             cancelled_count = Ticket.objects.filter(
@@ -144,30 +169,31 @@ def restore_inventory_on_order_delete(sender, instance, **kwargs):
     if instance.status == "confirmed":
         with transaction.atomic():
             from django.db.models import F
-            from Tickets.models import TicketType, TicketTier, DayPass
+            from Tickets.models import TicketType, TicketTier, DayPass, DayTierPrice
 
             for item in instance.items.select_related(
-                "ticket_type", "ticket_tier", "day_pass"
+                "ticket_type", "ticket_tier", "day_pass", "day_tier_price"
             ).all():
                 # Restore ticket type quantity using F() expression
                 TicketType.objects.filter(pk=item.ticket_type.pk).update(
                     quantity_sold=F("quantity_sold") - item.quantity
                 )
 
-                # Restore tier quantity if applicable
-                if item.ticket_tier:
-                    TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                # Restore day_tier_price quantity if applicable
+                if item.day_tier_price:
+                    DayTierPrice.objects.filter(pk=item.day_tier_price.pk).update(
                         quantity_sold=F("quantity_sold") - item.quantity
                     )
+                # Otherwise restore individual tier and day_pass
+                else:
+                    # Restore tier quantity if applicable
+                    if item.ticket_tier:
+                        TicketTier.objects.filter(pk=item.ticket_tier.pk).update(
+                            quantity_sold=F("quantity_sold") - item.quantity
+                        )
 
-                # Restore day pass quantity if applicable
-                if item.day_pass:
-                    DayPass.objects.filter(pk=item.day_pass.pk).update(
-                        quantity_sold=F("quantity_sold") - item.quantity
-                    )
-                if item.day_pass:
-                    day_pass = item.day_pass
-                    day_pass.quantity_sold = max(
-                        0, day_pass.quantity_sold - item.quantity
-                    )
-                    day_pass.save(update_fields=["quantity_sold"])
+                    # Restore day pass quantity if applicable
+                    if item.day_pass:
+                        DayPass.objects.filter(pk=item.day_pass.pk).update(
+                            quantity_sold=F("quantity_sold") - item.quantity
+                        )
