@@ -9,7 +9,7 @@ from django.utils import timezone
 from decimal import Decimal
 
 from .models import Order, OrderItem
-from Tickets.models import TicketType, TicketTier, DayPass
+from Tickets.models import TicketType, TicketTier, DayPass, DayTierPrice
 from Events.models import Event
 
 
@@ -25,6 +25,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "ticket_type",
             "ticket_tier",
             "day_pass",
+            "day_tier_price",
             "quantity",
             "unit_price",
             "subtotal",
@@ -51,6 +52,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
     ticket_type_id = serializers.UUIDField()
     ticket_tier_id = serializers.UUIDField(required=False, allow_null=True)
     day_pass_id = serializers.UUIDField(required=False, allow_null=True)
+    day_tier_price_id = serializers.UUIDField(required=False, allow_null=True)
     quantity = serializers.IntegerField(min_value=1)
 
     def validate(self, data):
@@ -156,41 +158,36 @@ class OrderItemCreateSerializer(serializers.Serializer):
             data["day_pass"] = day_pass
 
         elif pricing_type == "tier_and_day":
-            # Combination pricing - requires both tier and day pass
-            if not ticket_tier_id or not day_pass_id:
+            # Combination pricing - requires day_tier_price
+            day_tier_price_id = data.get("day_tier_price_id")
+
+            if not day_tier_price_id:
                 raise serializers.ValidationError(
-                    "Both ticket tier and day pass are required for this ticket type"
+                    "Day+Tier price combination is required for this ticket type"
                 )
 
             try:
-                tier = TicketTier.objects.get(
-                    id=ticket_tier_id, ticket_type=ticket_type
+                day_tier_price = DayTierPrice.objects.select_for_update().get(
+                    id=day_tier_price_id, ticket_type=ticket_type
                 )
-            except TicketTier.DoesNotExist:
-                raise serializers.ValidationError("Invalid ticket tier")
+            except DayTierPrice.DoesNotExist:
+                raise serializers.ValidationError("Invalid day+tier price combination")
 
-            try:
-                day_pass = DayPass.objects.get(id=day_pass_id, ticket_type=ticket_type)
-            except DayPass.DoesNotExist:
-                raise serializers.ValidationError("Invalid day pass")
-
-            # Check quantities (use minimum of both)
-            tier_available = tier.available_quantity
-            day_available = day_pass.available_quantity
-
-            if tier_available is not None and quantity > tier_available:
+            # Check if day_tier_price is on sale
+            if not day_tier_price.is_on_sale:
                 raise serializers.ValidationError(
-                    f"Only {tier_available} tickets available for tier '{tier.name}'"
-                )
-            if day_available is not None and quantity > day_available:
-                raise serializers.ValidationError(
-                    f"Only {day_available} tickets available for day '{day_pass.name}'"
+                    f"'{day_tier_price.tier_name}' for '{day_tier_price.day_name}' is not currently on sale"
                 )
 
-            # Price is sum of tier and day pass
-            unit_price = tier.price + day_pass.price
-            data["tier"] = tier
-            data["day_pass"] = day_pass
+            # Check quantity availability
+            dtp_available = day_tier_price.available_quantity
+            if dtp_available is not None and quantity > dtp_available:
+                raise serializers.ValidationError(
+                    f"Only {dtp_available} tickets available for '{day_tier_price.tier_name}' on '{day_tier_price.day_name}'"
+                )
+
+            unit_price = day_tier_price.price
+            data["day_tier_price"] = day_tier_price
 
         else:
             raise serializers.ValidationError("Invalid pricing type")
@@ -349,6 +346,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 ticket_type=ticket_type,
                 ticket_tier=item_data.get("tier"),
                 day_pass=item_data.get("day_pass"),
+                day_tier_price=item_data.get("day_tier_price"),
                 quantity=quantity,
                 unit_price=unit_price,
             )

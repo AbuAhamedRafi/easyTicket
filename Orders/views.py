@@ -237,7 +237,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = request.user
         tickets = OrderItem.objects.filter(
             order__user=user, order__status="confirmed"
-        ).select_related("order", "ticket_type", "ticket_tier", "day_pass")
+        ).select_related(
+            "order", "ticket_type", "ticket_tier", "day_pass", "day_tier_price"
+        )
 
         serializer = OrderItemSerializer(tickets, many=True)
         return Response(serializer.data)

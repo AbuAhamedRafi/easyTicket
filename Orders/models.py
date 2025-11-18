@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from Events.models import Event
-from Tickets.models import TicketType, TicketTier, DayPass
+from Tickets.models import TicketType, TicketTier, DayPass, DayTierPrice
 from Common.validators import validate_phone_number
 
 
@@ -250,6 +250,14 @@ class OrderItem(models.Model):
         related_name="order_items",
         help_text="Specific day pass if day-based pricing",
     )
+    day_tier_price = models.ForeignKey(
+        DayTierPrice,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="order_items",
+        help_text="Specific day+tier combination if tier_and_day pricing",
+    )
 
     # Quantity & Pricing (frozen at time of purchase)
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)], default=1)
@@ -297,10 +305,19 @@ class OrderItem(models.Model):
         # Set ticket names from related objects
         if not self.ticket_name:
             self.ticket_name = self.ticket_type.name
-        if self.ticket_tier and not self.tier_name:
-            self.tier_name = self.ticket_tier.name
-        if self.day_pass and not self.day_name:
-            self.day_name = self.day_pass.name
+
+        # Handle day_tier_price (takes precedence for tier_and_day pricing)
+        if self.day_tier_price:
+            if not self.tier_name:
+                self.tier_name = self.day_tier_price.tier_name
+            if not self.day_name:
+                self.day_name = self.day_tier_price.day_name
+        else:
+            # Fall back to individual tier/day_pass
+            if self.ticket_tier and not self.tier_name:
+                self.tier_name = self.ticket_tier.name
+            if self.day_pass and not self.day_name:
+                self.day_name = self.day_pass.name
 
         super().save(*args, **kwargs)
 

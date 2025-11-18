@@ -17,6 +17,7 @@ class OrderItemInline(admin.TabularInline):
         "ticket_type",
         "ticket_tier",
         "day_pass",
+        "day_tier_price",
         "quantity",
         "unit_price",
         "subtotal",
@@ -227,6 +228,7 @@ class OrderItemAdmin(admin.ModelAdmin):
                     "ticket_type",
                     "ticket_tier",
                     "day_pass",
+                    "day_tier_price",
                     "ticket_name",
                     "tier_name",
                     "day_name",
@@ -266,7 +268,9 @@ class OrderItemAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Optimize queries"""
         qs = super().get_queryset(request)
-        return qs.select_related("order", "ticket_type", "ticket_tier", "day_pass")
+        return qs.select_related(
+            "order", "ticket_type", "ticket_tier", "day_pass", "day_tier_price"
+        )
 
 
 @admin.register(WebhookEvent)
