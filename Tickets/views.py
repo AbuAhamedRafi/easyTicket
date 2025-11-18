@@ -15,13 +15,14 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import TicketType, TicketTier, DayPass, Ticket
+from .models import TicketType, TicketTier, DayPass, DayTierPrice, Ticket
 from .serializers import (
     TicketTypeListSerializer,
     TicketTypeDetailSerializer,
     TicketTypeCreateUpdateSerializer,
     TicketTierSerializer,
     DayPassSerializer,
+    DayTierPriceSerializer,
     TicketSerializer,
     TicketVerificationSerializer,
 )
@@ -84,7 +85,7 @@ class TicketTypeViewSet(viewsets.ModelViewSet):
 
     queryset = (
         TicketType.objects.select_related("event")
-        .prefetch_related("tiers", "day_passes")
+        .prefetch_related("tiers", "day_passes", "day_tier_prices")
         .all()
     )
     filter_backends = [
@@ -258,6 +259,119 @@ class DayPassViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["ticket_type", "is_all_days"]
     ordering_fields = ["day_number", "price", "date"]
+    ordering = ["day_number"]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List all day+tier prices",
+        description="Get a list of all day and tier price combinations",
+        tags=["Day Tier Prices"],
+    ),
+    retrieve=extend_schema(
+        summary="Get day+tier price details",
+        description="Get detailed information about a specific day+tier price combination",
+        tags=["Day Tier Prices"],
+    ),
+    create=extend_schema(
+        summary="Create new day+tier price",
+        description="Create a new day+tier price combination (Event organizer only)",
+        tags=["Day Tier Prices"],
+    ),
+    update=extend_schema(
+        summary="Update day+tier price",
+        description="Update an existing day+tier price (Event organizer only)",
+        tags=["Day Tier Prices"],
+    ),
+    partial_update=extend_schema(
+        summary="Partially update day+tier price",
+        description="Partially update a day+tier price (Event organizer only)",
+        tags=["Day Tier Prices"],
+    ),
+    destroy=extend_schema(
+        summary="Delete day+tier price",
+        description="Delete a day+tier price (Event organizer only)",
+        tags=["Day Tier Prices"],
+    ),
+)
+class DayTierPriceViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Day + Tier Price Combinations
+    Manages pricing matrix for multi-day tiered events
+    """
+
+    queryset = DayTierPrice.objects.select_related(
+        "ticket_type", "ticket_type__event"
+    ).all()
+    serializer_class = DayTierPriceSerializer
+    permission_classes = [IsEventOrganizerOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["ticket_type", "day_number", "tier_number", "is_active"]
+    ordering_fields = ["day_number", "tier_number", "price", "date"]
+    ordering = ["day_number", "tier_number"]
+
+    @extend_schema(
+        summary="Get pricing matrix",
+        description="Get the full Day×Tier pricing matrix for a ticket type",
+        tags=["Day Tier Prices"],
+        parameters=[
+            OpenApiParameter(
+                "ticket_type",
+                OpenApiTypes.UUID,
+                description="Filter by ticket type ID",
+                required=True,
+            ),
+        ],
+    )
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def matrix(self, request):
+        """
+        Get pricing matrix for a ticket type
+        Returns data organized by day and tier
+
+        GET /api/tickets/day-tier-prices/matrix/?ticket_type=<uuid>
+        """
+        ticket_type_id = request.query_params.get("ticket_type")
+        if not ticket_type_id:
+            return Response(
+                {"error": "ticket_type parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get all day+tier prices for this ticket type
+        day_tier_prices = self.queryset.filter(
+            ticket_type_id=ticket_type_id, is_active=True
+        ).order_by("day_number", "tier_number")
+
+        # Organize into matrix structure
+        matrix = {}
+        days = set()
+        tiers = set()
+
+        for dtp in day_tier_prices:
+            days.add((dtp.day_number, dtp.day_name))
+            tiers.add((dtp.tier_number, dtp.tier_name))
+
+            if dtp.day_number not in matrix:
+                matrix[dtp.day_number] = {}
+
+            matrix[dtp.day_number][dtp.tier_number] = DayTierPriceSerializer(dtp).data
+
+        # Format response
+        response_data = {
+            "ticket_type": ticket_type_id,
+            "days": sorted(
+                [{"number": d[0], "name": d[1]} for d in days],
+                key=lambda x: x["number"],
+            ),
+            "tiers": sorted(
+                [{"number": t[0], "name": t[1]} for t in tiers],
+                key=lambda x: x["number"],
+            ),
+            "matrix": matrix,
+        }
+
+        return Response(response_data)
 
 
 # ==================== Individual Ticket ViewSet ====================
@@ -297,12 +411,22 @@ class TicketViewSet(viewsets.ReadOnlyModelViewSet):
         if user.is_staff or user.user_type == "organizer":
             # Staff and organizers can see all tickets (filtered by their events)
             return Ticket.objects.select_related(
-                "event", "ticket_type", "ticket_tier", "day_pass", "order_item__order"
+                "event",
+                "ticket_type",
+                "ticket_tier",
+                "day_pass",
+                "day_tier_price",
+                "order_item__order",
             ).all()
 
         # Regular users see only their tickets
         return Ticket.objects.filter(order_item__order__user=user).select_related(
-            "event", "ticket_type", "ticket_tier", "day_pass", "order_item__order"
+            "event",
+            "ticket_type",
+            "ticket_tier",
+            "day_pass",
+            "day_tier_price",
+            "order_item__order",
         )
 
     @extend_schema(

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import TicketType, TicketTier, DayPass, Ticket
+from .models import TicketType, TicketTier, DayPass, DayTierPrice, Ticket
 
 
 class TicketTierInline(admin.TabularInline):
@@ -32,6 +32,25 @@ class DayPassInline(admin.TabularInline):
     readonly_fields = ["quantity_sold"]
 
 
+class DayTierPriceInline(admin.TabularInline):
+    """Inline for Day + Tier pricing combinations"""
+
+    model = DayTierPrice
+    extra = 1
+    fields = [
+        "day_number",
+        "day_name",
+        "date",
+        "tier_number",
+        "tier_name",
+        "price",
+        "quantity",
+        "quantity_sold",
+        "is_active",
+    ]
+    readonly_fields = ["quantity_sold"]
+
+
 @admin.register(TicketType)
 class TicketTypeAdmin(admin.ModelAdmin):
     list_display = [
@@ -57,7 +76,7 @@ class TicketTypeAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     ]
-    inlines = [TicketTierInline, DayPassInline]
+    inlines = [TicketTierInline, DayPassInline, DayTierPriceInline]
 
     fieldsets = (
         ("Basic Information", {"fields": ("id", "event", "name", "description")}),
@@ -196,6 +215,91 @@ class DayPassAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(DayTierPrice)
+class DayTierPriceAdmin(admin.ModelAdmin):
+    """Admin interface for Day + Tier pricing combinations"""
+
+    list_display = [
+        "ticket_type",
+        "day_name",
+        "tier_name",
+        "price",
+        "quantity",
+        "quantity_sold",
+        "available_quantity",
+        "is_active",
+        "is_on_sale",
+    ]
+    list_filter = ["is_active", "day_number", "tier_number", "date"]
+    search_fields = ["day_name", "tier_name", "ticket_type__name"]
+    readonly_fields = [
+        "id",
+        "quantity_sold",
+        "available_quantity",
+        "is_sold_out",
+        "is_on_sale",
+        "created_at",
+        "updated_at",
+    ]
+
+    fieldsets = (
+        (
+            "Ticket Type",
+            {"fields": ("id", "ticket_type")},
+        ),
+        (
+            "Day Information",
+            {
+                "fields": (
+                    "day_number",
+                    "day_name",
+                    "date",
+                )
+            },
+        ),
+        (
+            "Tier Information",
+            {
+                "fields": (
+                    "tier_number",
+                    "tier_name",
+                )
+            },
+        ),
+        ("Pricing", {"fields": ("price",)}),
+        (
+            "Inventory",
+            {
+                "fields": (
+                    "quantity",
+                    "quantity_sold",
+                    "available_quantity",
+                    "is_sold_out",
+                )
+            },
+        ),
+        (
+            "Sales Period",
+            {
+                "fields": ("sales_start", "sales_end", "is_on_sale"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Status",
+            {"fields": ("is_active",)},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("ticket_type", "ticket_type__event")
+
+
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
     """Admin interface for individual tickets"""
@@ -233,6 +337,7 @@ class TicketAdmin(admin.ModelAdmin):
         "ticket_type",
         "ticket_tier",
         "day_pass",
+        "day_tier_price",
         "ticket_name",
         "tier_name",
         "day_name",
@@ -267,6 +372,7 @@ class TicketAdmin(admin.ModelAdmin):
                     "ticket_type",
                     "ticket_tier",
                     "day_pass",
+                    "day_tier_price",
                 )
             },
         ),
