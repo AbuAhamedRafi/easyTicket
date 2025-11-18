@@ -246,12 +246,26 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Check for expired orders",
-        description="Check and update expired pending orders",
+        description="Check and update expired pending orders (Admin only)",
         tags=["Orders"],
     )
     @action(detail=False, methods=["post"])
     def cleanup_expired(self, request):
-        """Mark expired pending orders as failed"""
+        """Mark expired pending orders as failed (Admin only)"""
+        # Explicit authentication check
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # Explicit admin check - only admins should trigger system cleanup
+        if not request.user.is_staff:
+            return Response(
+                {"detail": "Only administrators can trigger order cleanup."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         now = timezone.now()
         expired_orders = Order.objects.filter(status="pending", expires_at__lt=now)
 

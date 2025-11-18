@@ -71,12 +71,10 @@ class OrderItemCreateSerializer(serializers.Serializer):
         day_pass_id = data.get("day_pass_id")
         quantity = data.get("quantity")
 
-        # Get ticket type with row lock to prevent race conditions
+        # Get ticket type for validation (locking will happen in create())
         try:
-            ticket_type = (
-                TicketType.objects.select_for_update()
-                .select_related("event")
-                .get(id=ticket_type_id)
+            ticket_type = TicketType.objects.select_related("event").get(
+                id=ticket_type_id
             )
         except TicketType.DoesNotExist:
             raise serializers.ValidationError("Ticket type not found")
@@ -167,7 +165,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
                 )
 
             try:
-                day_tier_price = DayTierPrice.objects.select_for_update().get(
+                day_tier_price = DayTierPrice.objects.get(
                     id=day_tier_price_id, ticket_type=ticket_type
                 )
             except DayTierPrice.DoesNotExist:
@@ -318,6 +316,51 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         """Create order with items"""
         items_data = validated_data.pop("items")
         user = self.context["request"].user
+
+        # Re-validate availability with row locks inside transaction
+        for item_data in items_data:
+            ticket_type = item_data["ticket_type"]
+            quantity = item_data["quantity"]
+
+            # Lock ticket_type row for inventory check
+            ticket_type = TicketType.objects.select_for_update().get(id=ticket_type.id)
+
+            # Re-check availability with locked row
+            if ticket_type.pricing_type == "simple":
+                available = ticket_type.available_quantity
+                if available is not None and quantity > available:
+                    raise serializers.ValidationError(
+                        f"Only {available} tickets available for '{ticket_type.name}'"
+                    )
+            elif ticket_type.pricing_type == "tiered":
+                tier = item_data.get("tier")
+                if tier:
+                    tier = TicketTier.objects.select_for_update().get(id=tier.id)
+                    tier_available = tier.available_quantity
+                    if tier_available is not None and quantity > tier_available:
+                        raise serializers.ValidationError(
+                            f"Only {tier_available} tickets available for tier '{tier.name}'"
+                        )
+            elif ticket_type.pricing_type == "day_based":
+                day_pass = item_data.get("day_pass")
+                if day_pass:
+                    day_pass = DayPass.objects.select_for_update().get(id=day_pass.id)
+                    day_available = day_pass.available_quantity
+                    if day_available is not None and quantity > day_available:
+                        raise serializers.ValidationError(
+                            f"Only {day_available} tickets available for '{day_pass.name}'"
+                        )
+            elif ticket_type.pricing_type == "tier_and_day":
+                day_tier_price = item_data.get("day_tier_price")
+                if day_tier_price:
+                    day_tier_price = DayTierPrice.objects.select_for_update().get(
+                        id=day_tier_price.id
+                    )
+                    dtp_available = day_tier_price.available_quantity
+                    if dtp_available is not None and quantity > dtp_available:
+                        raise serializers.ValidationError(
+                            f"Only {dtp_available} tickets available for '{day_tier_price.tier_name}' on '{day_tier_price.day_name}'"
+                        )
 
         # Calculate subtotal first before creating order
         subtotal = Decimal("0.00")
