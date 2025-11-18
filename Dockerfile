@@ -1,29 +1,29 @@
-# Use official Python runtime as base image
 FROM python:3.12-slim
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (cached unless system packages change)
 RUN apt-get update && apt-get install -y \
-    postgresql-client \
     build-essential \
     libpq-dev \
+    netcat-openbsd \
+    gcc \
+    postgresql-client \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt /app/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Copy and install Python dependencies first (better caching)
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Copy project
-COPY . /app/
+# Copy entrypoint before project files
+COPY ./entrypoint.sh /entrypoint.sh
+RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
 
-# Expose port
-EXPOSE 8000
+# Copy project files (this layer changes most often)
+COPY . .
 
-# Run the application
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+ENTRYPOINT ["/entrypoint.sh"]

@@ -17,7 +17,6 @@ venv.bak/
 .venv/
 
 # Django
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -33,6 +32,12 @@ db.sqlite3-journal
 .env
 .env.local
 .env.*.local
+.env.production
+*.env
+
+# Logs
+logs/
+*.log
 
 # IDE - VSCode
 .vscode/
