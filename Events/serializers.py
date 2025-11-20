@@ -58,6 +58,7 @@ class EventListSerializer(serializers.ModelSerializer):
             "organizer_email",
             "category",
             "category_name",
+            "pricing_type",
             "venue_name",
             "venue_city",
             "venue_country",
@@ -120,6 +121,13 @@ class EventDetailSerializer(serializers.ModelSerializer):
 class EventCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating events"""
 
+    # Make category optional and accept null
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=EventCategory.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = Event
         fields = [
@@ -127,6 +135,7 @@ class EventCreateUpdateSerializer(serializers.ModelSerializer):
             "description",
             "short_description",
             "category",
+            "pricing_type",
             "venue_name",
             "venue_address",
             "venue_city",

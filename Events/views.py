@@ -213,11 +213,22 @@ class EventViewSet(viewsets.ModelViewSet):
         description="Get all events created by the authenticated organizer",
         tags=["Events"],
     )
-    @action(
-        detail=False, methods=["get"], permission_classes=[IsAuthenticated, IsOrganizer]
-    )
+    @action(detail=False, methods=["get"])
     def my_events(self, request):
         """Get all events created by the current organizer"""
+        # Check if user is an organizer
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if request.user.user_type != "organizer":
+            return Response(
+                {"detail": "Only organizers can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         events = self.queryset.filter(organizer=request.user)
         serializer = EventListSerializer(
             events, many=True, context={"request": request}
@@ -261,14 +272,24 @@ class EventViewSet(viewsets.ModelViewSet):
         description="Change event status to published (Owner only)",
         tags=["Events"],
     )
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthenticated, IsEventOwner],
-    )
+    @action(detail=True, methods=["post"])
     def publish(self, request, slug=None):
         """Publish an event"""
+        # Explicit authentication check
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         event = self.get_object()
+
+        # Explicit ownership check
+        if not (request.user.is_staff or event.organizer == request.user):
+            return Response(
+                {"detail": "You do not have permission to publish this event."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         if event.status == "published":
             return Response(
@@ -288,14 +309,24 @@ class EventViewSet(viewsets.ModelViewSet):
         description="Cancel an event (Owner only)",
         tags=["Events"],
     )
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthenticated, IsEventOwner],
-    )
+    @action(detail=True, methods=["post"])
     def cancel(self, request, slug=None):
         """Cancel an event"""
+        # Explicit authentication check
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         event = self.get_object()
+
+        # Explicit ownership check
+        if not (request.user.is_staff or event.organizer == request.user):
+            return Response(
+                {"detail": "You do not have permission to cancel this event."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         if event.status == "cancelled":
             return Response(

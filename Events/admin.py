@@ -17,6 +17,7 @@ class EventAdmin(admin.ModelAdmin):
         "title",
         "organizer",
         "category",
+        "pricing_type",
         "status",
         "start_date",
         "venue_city",
@@ -26,6 +27,7 @@ class EventAdmin(admin.ModelAdmin):
     list_filter = [
         "status",
         "category",
+        "pricing_type",
         "is_featured",
         "is_free",
         "start_date",
@@ -70,7 +72,15 @@ class EventAdmin(admin.ModelAdmin):
         ("Media", {"fields": ("banner_image", "thumbnail_image")}),
         (
             "Capacity & Pricing",
-            {"fields": ("total_capacity", "is_free", "base_price", "currency")},
+            {
+                "fields": (
+                    "pricing_type",
+                    "total_capacity",
+                    "is_free",
+                    "base_price",
+                    "currency",
+                )
+            },
         ),
         ("Status & Visibility", {"fields": ("status", "is_featured", "published_at")}),
         (
