@@ -1,3 +1,8 @@
+"""
+User models for EasyTicket authentication system
+"""
+import uuid
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import (
     AbstractBaseUser,
@@ -5,7 +10,12 @@ from django.contrib.auth.models import (
     PermissionsMixin,
 )
 from django.utils import timezone
-import uuid
+from Common.models import BaseModelWithUID
+
+
+def user_media_file_prefix(instance, filename):
+    """Generate file path for user profile pictures"""
+    return f"users/profile_pictures/{instance.uid}/media/{filename}"
 
 
 class UserManager(BaseUserManager):
@@ -26,7 +36,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
-        extra_fields.setdefault("is_email_verified", True)
+        extra_fields.setdefault("is_verified", True)
         extra_fields.setdefault("user_type", "admin")
 
         if extra_fields.get("is_staff") is not True:
@@ -37,7 +47,7 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 
-class User(AbstractBaseUser, PermissionsMixin):
+class User(AbstractBaseUser, PermissionsMixin, BaseModelWithUID):
     """Custom User model with email as the primary identifier"""
 
     USER_TYPE_CHOICES = [
@@ -53,34 +63,41 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
 
     # Primary fields
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
 
     # User information
     first_name = models.CharField(max_length=50, blank=True)
     last_name = models.CharField(max_length=50, blank=True)
+    profile_image = models.ImageField(
+        upload_to=user_media_file_prefix,
+        null=True,
+        blank=True,
+        help_text="User profile picture"
+    )
     user_type = models.CharField(
-        max_length=20, choices=USER_TYPE_CHOICES, default="consumer"
+        max_length=20,
+        choices=USER_TYPE_CHOICES,
+        default="consumer"
     )
     auth_provider = models.CharField(
-        max_length=20, choices=AUTH_PROVIDER_CHOICES, default="email"
+        max_length=20,
+        choices=AUTH_PROVIDER_CHOICES,
+        default="email"
     )
 
     # Verification and status fields
-    is_email_verified = models.BooleanField(default=False)
+    is_verified = models.BooleanField(
+        default=False,
+        help_text="Email verification status"
+    )
     is_phone_verified = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
 
     # Timestamps
     date_joined = models.DateTimeField(default=timezone.now)
     last_login = models.DateTimeField(blank=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    # Email verification
-    email_verification_token = models.CharField(max_length=100, blank=True, null=True)
-    email_verification_token_created = models.DateTimeField(blank=True, null=True)
 
     # Manager
     objects = UserManager()
@@ -92,7 +109,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_table = "users"
         verbose_name = "User"
         verbose_name_plural = "Users"
-        ordering = ["-date_joined"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return self.email
@@ -119,3 +136,65 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_admin(self):
         """Check if user is an admin"""
         return self.user_type == "admin" or self.is_superuser
+
+
+class EmailVerificationToken(models.Model):
+    """Token for email verification"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="verification_tokens"
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"Verification token for {self.user.email}"
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Email Verification Token"
+        verbose_name_plural = "Email Verification Tokens"
+
+
+class PasswordResetToken(models.Model):
+    """Token for password reset"""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens"
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"Password reset token for {self.user.email}"
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Password Reset Token"
+        verbose_name_plural = "Password Reset Tokens"

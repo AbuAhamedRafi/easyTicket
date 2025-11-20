@@ -187,6 +187,8 @@ SIMPLE_JWT = {
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "uid",  # Use uid instead of id
+    "USER_ID_CLAIM": "user_uid",  # JWT claim name for user identifier
     # Cookie-based authentication
     "AUTH_COOKIE": "access_token",  # Cookie name for access token
     "AUTH_COOKIE_REFRESH": "refresh_token",  # Cookie name for refresh token
@@ -238,6 +240,25 @@ FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 # Media files (uploaded by users)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="")
+SOCIAL_AUTH_PASSWORD = config(
+    "SOCIAL_AUTH_PASSWORD", default="social_auth_password_123"
+)
+
+# Celery Configuration
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = config(
+    "CELERY_RESULT_BACKEND", default="redis://localhost:6379/0"
+)
+CELERY_ACCEPT_CONTENT = ["application/json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
 # API Documentation - Spectacular
 SPECTACULAR_SETTINGS = {
