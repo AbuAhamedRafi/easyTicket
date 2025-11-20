@@ -2,6 +2,7 @@
 Serializers for Events app
 """
 
+from django.db import transaction
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Event, EventCategory
@@ -15,7 +16,7 @@ class EventCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = EventCategory
         fields = [
-            "id",
+            "uid",
             "name",
             "slug",
             "description",
@@ -24,7 +25,7 @@ class EventCategorySerializer(serializers.ModelSerializer):
             "events_count",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["uid", "created_at"]
 
     def get_events_count(self, obj):
         """Get count of published events in this category"""
@@ -49,7 +50,7 @@ class EventListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            "id",
+            "uid",
             "title",
             "slug",
             "short_description",
@@ -77,7 +78,7 @@ class EventListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = [
-            "id",
+            "uid",
             "slug",
             "organizer",
             "created_at",
@@ -105,7 +106,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
         model = Event
         fields = "__all__"
         read_only_fields = [
-            "id",
+            "uid",
             "slug",
             "organizer",
             "created_at",
@@ -205,6 +206,7 @@ class EventCreateUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
+    @transaction.atomic
     def create(self, validated_data):
         """Create event with organizer"""
         # Organizer will be set in the view

@@ -3,18 +3,18 @@ Order models for EasyTicket
 Handles ticket purchases and order management
 """
 
-import uuid
 from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
+from Common.models import BaseModelWithUID
 from Events.models import Event
 from Tickets.models import TicketType, TicketTier, DayPass, DayTierPrice
 from Common.validators import validate_phone_number
 
 
-class Order(models.Model):
+class Order(BaseModelWithUID):
     """
     Main order model for ticket purchases
     """
@@ -38,7 +38,6 @@ class Order(models.Model):
     ]
 
     # Primary Information
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order_number = models.CharField(
         max_length=20,
         unique=True,
@@ -111,8 +110,6 @@ class Order(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     expires_at = models.DateTimeField(
         null=True, blank=True, help_text="Pending orders expire after this time"
     )
@@ -221,13 +218,12 @@ class Order(models.Model):
         self.save()
 
 
-class OrderItem(models.Model):
+class OrderItem(BaseModelWithUID):
     """
     Individual ticket items within an order
     Links to TicketType and optionally to TicketTier or DayPass
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
 
     # Ticket Information
@@ -284,10 +280,6 @@ class OrderItem(models.Model):
     day_name = models.CharField(
         max_length=100, blank=True, help_text="Day pass name if applicable"
     )
-
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Order Item"

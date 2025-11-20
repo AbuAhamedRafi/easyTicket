@@ -2,6 +2,7 @@
 Serializers for Tickets app
 """
 
+from django.db import transaction
 from rest_framework import serializers
 from django.utils import timezone
 from .models import TicketType, TicketTier, DayPass, DayTierPrice, Ticket
@@ -16,7 +17,7 @@ class TicketTierSerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketTier
         fields = [
-            "id",
+            "uid",
             "tier_number",
             "name",
             "price",
@@ -28,7 +29,7 @@ class TicketTierSerializer(serializers.ModelSerializer):
             "sales_end",
             "created_at",
         ]
-        read_only_fields = ["id", "quantity_sold", "created_at"]
+        read_only_fields = ["uid", "quantity_sold", "created_at"]
 
     def validate(self, attrs):
         """Validate tier data"""
@@ -52,7 +53,7 @@ class DayPassSerializer(serializers.ModelSerializer):
     class Meta:
         model = DayPass
         fields = [
-            "id",
+            "uid",
             "day_number",
             "name",
             "date",
@@ -64,7 +65,7 @@ class DayPassSerializer(serializers.ModelSerializer):
             "is_all_days",
             "created_at",
         ]
-        read_only_fields = ["id", "quantity_sold", "created_at"]
+        read_only_fields = ["uid", "quantity_sold", "created_at"]
 
     def validate(self, attrs):
         """Validate day pass data"""
@@ -94,7 +95,7 @@ class DayTierPriceSerializer(serializers.ModelSerializer):
     class Meta:
         model = DayTierPrice
         fields = [
-            "id",
+            "uid",
             "day_number",
             "day_name",
             "date",
@@ -111,7 +112,7 @@ class DayTierPriceSerializer(serializers.ModelSerializer):
             "sales_end",
             "created_at",
         ]
-        read_only_fields = ["id", "quantity_sold", "created_at"]
+        read_only_fields = ["uid", "quantity_sold", "created_at"]
 
     def validate(self, attrs):
         """Validate day tier price data"""
@@ -152,7 +153,7 @@ class TicketTypeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketType
         fields = [
-            "id",
+            "uid",
             "event",
             "event_title",
             "name",
@@ -188,7 +189,7 @@ class TicketTypeDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketType
         fields = "__all__"
-        read_only_fields = ["id", "quantity_sold", "created_at", "updated_at"]
+        read_only_fields = ["uid", "quantity_sold", "created_at", "updated_at"]
 
 
 class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
@@ -258,6 +259,7 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         """Create ticket type with nested tiers/days/day_tier_prices"""
         tiers_data = validated_data.pop("tiers", [])
@@ -319,7 +321,7 @@ class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = [
-            "id",
+            "uid",
             "ticket_number",
             "qr_code_data",
             "event",
@@ -342,7 +344,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = [
-            "id",
+            "uid",
             "ticket_number",
             "qr_code_data",
             "event",
