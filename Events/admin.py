@@ -8,7 +8,7 @@ class EventCategoryAdmin(admin.ModelAdmin):
     list_filter = ["is_active", "created_at"]
     search_fields = ["name", "description"]
     prepopulated_fields = {"slug": ("name",)}
-    readonly_fields = ["id", "created_at", "updated_at"]
+    readonly_fields = ["uid", "created_at", "updated_at"]
 
 
 @admin.register(Event)
@@ -35,7 +35,7 @@ class EventAdmin(admin.ModelAdmin):
     ]
     search_fields = ["title", "description", "venue_name", "venue_city", "tags"]
     prepopulated_fields = {"slug": ("title",)}
-    readonly_fields = ["id", "created_at", "updated_at", "published_at"]
+    readonly_fields = ["uid", "created_at", "updated_at", "published_at"]
     date_hierarchy = "start_date"
 
     fieldsets = (

@@ -340,10 +340,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                 amount=amount_cents,
                 currency=order.currency.lower(),
                 metadata={
-                    "order_id": str(order.id),
+                    "order_id": str(order.uid),
                     "order_number": order.order_number,
-                    "event_id": str(order.event.id),
-                    "user_id": str(order.user.id),
+                    "event_id": str(order.event.uid),
+                    "user_id": str(order.user.uid),
                     "expires_at": (
                         order.expires_at.isoformat() if order.expires_at else None
                     ),
@@ -376,14 +376,14 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error for order {order.id}: {str(e)}")
+            logger.error(f"Stripe error for order {order.uid}: {str(e)}")
             return Response(
                 {"error": f"Payment processing error: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             logger.error(
-                f"Error creating payment intent for order {order.id}: {str(e)}"
+                f"Error creating payment intent for order {order.uid}: {str(e)}"
             )
             return Response(
                 {"error": "Failed to create payment intent"},
@@ -412,7 +412,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             return Response(
                 {
-                    "order_id": str(order.id),
+                    "order_id": str(order.uid),
                     "order_number": order.order_number,
                     "order_status": order.status,
                     "payment_status": payment_intent.status,
@@ -424,7 +424,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         except stripe.error.StripeError as e:
             logger.error(
-                f"Stripe error retrieving payment for order {order.id}: {str(e)}"
+                f"Stripe error retrieving payment for order {order.uid}: {str(e)}"
             )
             return Response(
                 {"error": f"Failed to retrieve payment status: {str(e)}"},
@@ -518,7 +518,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe refund error for order {order.id}: {str(e)}")
+            logger.error(f"Stripe refund error for order {order.uid}: {str(e)}")
             return Response(
                 {"error": f"Refund failed: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,

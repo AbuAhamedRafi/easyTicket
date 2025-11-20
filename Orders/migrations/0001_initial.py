@@ -54,7 +54,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Order',
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('uid', models.UUIDField(default=uuid.uuid4, editable=False, help_text='Unique identifier (UUID)', primary_key=True, serialize=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('order_number', models.CharField(blank=True, help_text='Human-readable order number (auto-generated)', max_length=20, unique=True)),
                 ('status', models.CharField(choices=[('pending', 'Pending'), ('processing', 'Processing'), ('confirmed', 'Confirmed'), ('cancelled', 'Cancelled'), ('refunded', 'Refunded'), ('failed', 'Failed')], default='pending', max_length=20)),
                 ('subtotal', models.DecimalField(decimal_places=2, help_text='Total before fees and discounts', max_digits=10, validators=[django.core.validators.MinValueValidator(0)])),
@@ -72,8 +74,6 @@ class Migration(migrations.Migration):
                 ('notes', models.TextField(blank=True, help_text='Customer notes or special requests')),
                 ('cancellation_reason', models.TextField(blank=True)),
                 ('cancelled_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('expires_at', models.DateTimeField(blank=True, help_text='Pending orders expire after this time', null=True)),
                 ('event', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='Events.event')),
             ],

@@ -63,7 +63,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='TicketTier',
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('uid', models.UUIDField(default=uuid.uuid4, editable=False, help_text='Unique identifier (UUID)', primary_key=True, serialize=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('tier_number', models.PositiveIntegerField(help_text='Tier level (1 = cheapest, higher = more expensive)', validators=[django.core.validators.MinValueValidator(1)])),
                 ('name', models.CharField(help_text='E.g., Tier 1, Tier 2, Early Bird', max_length=50)),
                 ('price', models.DecimalField(decimal_places=2, max_digits=10, validators=[django.core.validators.MinValueValidator(0)])),

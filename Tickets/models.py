@@ -3,15 +3,15 @@ Ticket models for EasyTicket
 Supports tier-based pricing, day-based tickets, and combinations
 """
 
-import uuid
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
+from Common.models import BaseModelWithUID
 from Events.models import Event
 
 
-class TicketType(models.Model):
+class TicketType(BaseModelWithUID):
     """
     Main ticket type for an event (e.g., VIP, General Admission, Early Bird)
     Can have multiple tiers or day passes
@@ -24,7 +24,6 @@ class TicketType(models.Model):
         ("tier_and_day", "Tiered + Day-Based"),  # Matrix: Each day has multiple tiers
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(
         Event, on_delete=models.CASCADE, related_name="ticket_types"
     )
@@ -86,10 +85,6 @@ class TicketType(models.Model):
     # Status
     is_active = models.BooleanField(default=True)
 
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = "Ticket Type"
         verbose_name_plural = "Ticket Types"
@@ -146,12 +141,11 @@ class TicketType(models.Model):
         return 0
 
 
-class TicketTier(models.Model):
+class TicketTier(BaseModelWithUID):
     """
     Pricing tiers for tickets (Tier 1: $50, Tier 2: $75, Tier 3: $100)
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket_type = models.ForeignKey(
         TicketType, on_delete=models.CASCADE, related_name="tiers"
     )
@@ -175,9 +169,6 @@ class TicketTier(models.Model):
     sales_start = models.DateTimeField(null=True, blank=True)
     sales_end = models.DateTimeField(null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = "Ticket Tier"
         verbose_name_plural = "Ticket Tiers"
@@ -196,14 +187,13 @@ class TicketTier(models.Model):
         return self.available_quantity == 0
 
 
-class DayPass(models.Model):
+class DayPass(BaseModelWithUID):
     """
     Day-based tickets for multi-day events (Day 1, Day 2, All Days)
     Used for 'day_based' pricing type only
     For 'tier_and_day' pricing, use DayTierPrice model instead
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket_type = models.ForeignKey(
         TicketType, on_delete=models.CASCADE, related_name="day_passes"
     )
@@ -235,9 +225,6 @@ class DayPass(models.Model):
         default=False, help_text="True if this is an 'All Days' pass"
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = "Day Pass"
         verbose_name_plural = "Day Passes"
@@ -256,7 +243,7 @@ class DayPass(models.Model):
         return self.available_quantity == 0
 
 
-class DayTierPrice(models.Model):
+class DayTierPrice(BaseModelWithUID):
     """
     Combination of Day + Tier pricing for multi-day events with tier levels
     Used ONLY for 'tier_and_day' pricing type
@@ -268,7 +255,6 @@ class DayTierPrice(models.Model):
     - Day 2 + General (Tier 2) = $75
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket_type = models.ForeignKey(
         TicketType, on_delete=models.CASCADE, related_name="day_tier_prices"
     )
@@ -319,9 +305,6 @@ class DayTierPrice(models.Model):
         default=True, help_text="Is this combination currently available?"
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         verbose_name = "Day + Tier Price"
         verbose_name_plural = "Day + Tier Prices"
@@ -368,7 +351,7 @@ class DayTierPrice(models.Model):
         return True
 
 
-class Ticket(models.Model):
+class Ticket(BaseModelWithUID):
     """
     Individual ticket instance with unique QR code
     Generated when order is confirmed
@@ -382,7 +365,6 @@ class Ticket(models.Model):
     ]
 
     # Primary fields
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket_number = models.CharField(
         max_length=30,
         unique=True,
@@ -489,10 +471,6 @@ class Ticket(models.Model):
     attendee_phone = models.CharField(
         max_length=15, blank=True, help_text="Phone of person attending"
     )
-
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Ticket"

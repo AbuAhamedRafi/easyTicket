@@ -21,7 +21,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = [
-            "id",
+            "uid",
             "ticket_type",
             "ticket_tier",
             "day_pass",
@@ -36,7 +36,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = [
-            "id",
+            "uid",
             "subtotal",
             "ticket_name",
             "tier_name",
@@ -208,7 +208,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            "id",
+            "uid",
             "order_number",
             "event",
             "event_name",
@@ -221,7 +221,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "created_at",
             "expires_at",
         ]
-        read_only_fields = ["id", "order_number", "created_at"]
+        read_only_fields = ["uid", "order_number", "created_at"]
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
@@ -239,7 +239,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            "id",
+            "uid",
             "order_number",
             "user",
             "event",
@@ -272,7 +272,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "expires_at",
         ]
         read_only_fields = [
-            "id",
+            "uid",
             "order_number",
             "user",
             "created_at",

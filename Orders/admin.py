@@ -56,7 +56,7 @@ class OrderAdmin(admin.ModelAdmin):
     ]
 
     readonly_fields = [
-        "id",
+        "uid",
         "order_number",
         "created_at",
         "updated_at",
@@ -72,7 +72,7 @@ class OrderAdmin(admin.ModelAdmin):
             "Order Information",
             {
                 "fields": [
-                    "id",
+                    "uid",
                     "order_number",
                     "user",
                     "event",
@@ -212,7 +212,7 @@ class OrderItemAdmin(admin.ModelAdmin):
     ]
 
     readonly_fields = [
-        "id",
+        "uid",
         "subtotal",
         "full_ticket_name",
         "created_at",
@@ -250,7 +250,7 @@ class OrderItemAdmin(admin.ModelAdmin):
             "Metadata",
             {
                 "fields": [
-                    "id",
+                    "uid",
                     "created_at",
                     "updated_at",
                 ]

@@ -67,7 +67,7 @@ class TicketTypeAdmin(admin.ModelAdmin):
     list_filter = ["pricing_type", "is_active", "created_at"]
     search_fields = ["name", "description", "event__title"]
     readonly_fields = [
-        "id",
+        "uid",
         "quantity_sold",
         "available_quantity",
         "is_sold_out",
@@ -79,7 +79,7 @@ class TicketTypeAdmin(admin.ModelAdmin):
     inlines = [TicketTierInline, DayPassInline, DayTierPriceInline]
 
     fieldsets = (
-        ("Basic Information", {"fields": ("id", "event", "name", "description")}),
+        ("Basic Information", {"fields": ("uid", "event", "name", "description")}),
         ("Pricing", {"fields": ("pricing_type", "price", "min_price")}),
         (
             "Inventory",
@@ -124,7 +124,7 @@ class TicketTierAdmin(admin.ModelAdmin):
     list_filter = ["tier_number", "created_at"]
     search_fields = ["name", "ticket_type__name"]
     readonly_fields = [
-        "id",
+        "uid",
         "quantity_sold",
         "available_quantity",
         "is_sold_out",
@@ -133,7 +133,10 @@ class TicketTierAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        ("Basic Information", {"fields": ("id", "ticket_type", "tier_number", "name")}),
+        (
+            "Basic Information",
+            {"fields": ("uid", "ticket_type", "tier_number", "name")},
+        ),
         ("Pricing", {"fields": ("price",)}),
         (
             "Inventory",
@@ -174,7 +177,7 @@ class DayPassAdmin(admin.ModelAdmin):
     list_filter = ["is_all_days", "date", "created_at"]
     search_fields = ["name", "ticket_type__name"]
     readonly_fields = [
-        "id",
+        "uid",
         "quantity_sold",
         "available_quantity",
         "is_sold_out",
@@ -187,7 +190,7 @@ class DayPassAdmin(admin.ModelAdmin):
             "Basic Information",
             {
                 "fields": (
-                    "id",
+                    "uid",
                     "ticket_type",
                     "day_number",
                     "name",
@@ -233,7 +236,7 @@ class DayTierPriceAdmin(admin.ModelAdmin):
     list_filter = ["is_active", "day_number", "tier_number", "date"]
     search_fields = ["day_name", "tier_name", "ticket_type__name"]
     readonly_fields = [
-        "id",
+        "uid",
         "quantity_sold",
         "available_quantity",
         "is_sold_out",
@@ -243,10 +246,7 @@ class DayTierPriceAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        (
-            "Ticket Type",
-            {"fields": ("id", "ticket_type")},
-        ),
+        ("Ticket Type", {"fields": ("uid", "ticket_type")}),
         (
             "Day Information",
             {
@@ -329,7 +329,7 @@ class TicketAdmin(admin.ModelAdmin):
         "order_item__order__order_number",
     ]
     readonly_fields = [
-        "id",
+        "uid",
         "ticket_number",
         "qr_code_data",
         "order_item",
@@ -356,7 +356,7 @@ class TicketAdmin(admin.ModelAdmin):
             "Ticket Information",
             {
                 "fields": (
-                    "id",
+                    "uid",
                     "ticket_number",
                     "qr_code_data",
                 )

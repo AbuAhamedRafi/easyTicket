@@ -125,7 +125,7 @@ class TicketTypeViewSet(viewsets.ModelViewSet):
             if is_on_sale.lower() == "true":
                 # Filter tickets that are currently on sale
                 queryset = [ticket for ticket in queryset if ticket.is_on_sale]
-                queryset = TicketType.objects.filter(id__in=[t.id for t in queryset])
+                queryset = TicketType.objects.filter(uid__in=[t.uid for t in queryset])
 
         return queryset
 
@@ -159,7 +159,7 @@ class TicketTypeViewSet(viewsets.ModelViewSet):
     def available(self, request):
         """Get all available tickets"""
         available_tickets = [ticket for ticket in self.queryset if ticket.is_on_sale]
-        tickets = TicketType.objects.filter(id__in=[t.id for t in available_tickets])
+        tickets = TicketType.objects.filter(uid__in=[t.uid for t in available_tickets])
         serializer = TicketTypeListSerializer(
             tickets, many=True, context={"request": request}
         )

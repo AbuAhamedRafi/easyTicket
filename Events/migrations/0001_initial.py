@@ -45,8 +45,6 @@ class Migration(migrations.Migration):
                 ('age_restriction', models.PositiveIntegerField(blank=True, help_text='Minimum age requirement (e.g., 18)', null=True)),
                 ('tags', models.CharField(blank=True, help_text='Comma-separated tags for search', max_length=500)),
                 ('is_featured', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
                 ('published_at', models.DateTimeField(blank=True, null=True)),
             ],
             options={
