@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,11 +11,14 @@ from Common.throttling import AuthThrottle
 from .serializers import (
     UserRegistrationSerializer,
     EmailVerificationSerializer,
-    LoginSerializer,
-    UserSerializer,
-    ChangePasswordSerializer,
+    UserLoginSerializer,
+    UserProfileSerializer,
+    PasswordChangeSerializer,
     ResendVerificationSerializer,
     LogoutSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+    GoogleSignInSerializer,
 )
 from .models import User
 
@@ -35,6 +39,7 @@ class UserRegistrationView(generics.CreateAPIView):
         description="Create a new user account (consumer or organizer). Email verification required before login.",
         tags=["Authentication"],
     )
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -44,7 +49,7 @@ class UserRegistrationView(generics.CreateAPIView):
             {
                 "message": "Registration successful. Please check your email to verify your account.",
                 "user": {
-                    "id": str(user.id),
+                    "id": str(user.uid),
                     "email": user.email,
                     "user_type": user.user_type,
                 },
@@ -68,6 +73,7 @@ class EmailVerificationView(generics.GenericAPIView):
         description="Verify user email using the token sent via email",
         tags=["Authentication"],
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -77,7 +83,7 @@ class EmailVerificationView(generics.GenericAPIView):
             {
                 "message": "Email verified successfully. You can now login.",
                 "user": {
-                    "id": str(user.id),
+                    "id": str(user.uid),
                     "email": user.email,
                 },
             },
@@ -93,7 +99,7 @@ class LoginView(generics.GenericAPIView):
     Returns JWT tokens
     """
 
-    serializer_class = LoginSerializer
+    serializer_class = UserLoginSerializer
     permission_classes = [AllowAny]
     throttle_classes = [AuthThrottle]  # Rate limit: 5 requests per hour
 
@@ -102,6 +108,7 @@ class LoginView(generics.GenericAPIView):
         description="Authenticate user and return JWT tokens. Email must be verified.",
         tags=["Authentication"],
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -124,7 +131,7 @@ class LoginView(generics.GenericAPIView):
                     "refresh": refresh_token,
                     "access": access_token,
                 },
-                "user": UserSerializer(user).data,
+                "user": UserProfileSerializer(user).data,
             },
             status=status.HTTP_200_OK,
         )
@@ -214,7 +221,7 @@ class CurrentUserView(generics.RetrieveUpdateAPIView):
     PUT/PATCH /api/auth/profile/
     """
 
-    serializer_class = UserSerializer
+    serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -237,7 +244,7 @@ class ChangePasswordView(generics.GenericAPIView):
     }
     """
 
-    serializer_class = ChangePasswordSerializer
+    serializer_class = PasswordChangeSerializer
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -245,6 +252,7 @@ class ChangePasswordView(generics.GenericAPIView):
         description="Change the authenticated user's password",
         tags=["Authentication"],
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -270,6 +278,7 @@ class ResendVerificationView(generics.GenericAPIView):
         description="Resend email verification link to user",
         tags=["Authentication"],
     )
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
