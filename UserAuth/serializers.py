@@ -1,19 +1,17 @@
 """
 Serializers for UserAuth app
-Handles user registration, authentication, and profile management
 """
 
-from datetime import timedelta
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import serializers
-from .models import User, EmailVerificationToken, PasswordResetToken
-from .utils import (
-    validate_unique_email,
-    validate_password_confirmation,
-    validate_google_token,
-    register_social_user,
-)
+from datetime import timedelta
+import uuid
+from .models import User
+from Common.email_utils import send_verification_email, send_welcome_email
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -38,15 +36,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "user_type",
             "phone_number",
         ]
-        extra_kwargs = {"uid": {"read_only": True}}
-
-    def validate(self, attrs):
-        """Validate email uniqueness and password confirmation"""
-        validate_unique_email(attrs.get("email"))
-        validate_password_confirmation(
-            attrs.get("password"), attrs.get("password_confirm")
-        )
-        return attrs
+        read_only_fields = ["uid"]
 
     def validate_user_type(self, value):
         """Only allow consumer and organizer during registration"""
@@ -189,23 +179,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "date_joined",
             "auth_provider",
         ]
-        read_only_fields = ["uid"]
-
-    def update(self, instance, validated_data):
-        """Update user profile"""
-        instance.first_name = validated_data.get("first_name", instance.first_name)
-        instance.last_name = validated_data.get("last_name", instance.last_name)
-        instance.profile_image = validated_data.get(
-            "profile_image", instance.profile_image
-        )
-        instance.phone_number = validated_data.get(
-            "phone_number", instance.phone_number
-        )
-        instance.save()
-        return instance
+        read_only_fields = [
+            "uid",
+            "email",
+            "user_type",
+            "is_email_verified",
+            "is_phone_verified",
+            "date_joined",
+            "auth_provider",
+        ]
 
 
-class PasswordChangeSerializer(serializers.Serializer):
+class ChangePasswordSerializer(serializers.Serializer):
     """Serializer for changing password"""
 
     old_password = serializers.CharField(write_only=True)

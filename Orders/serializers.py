@@ -419,6 +419,7 @@ class OrderCancelSerializer(serializers.Serializer):
 
         return data
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         """Cancel the order"""
         reason = validated_data.get("reason", "Customer cancellation")
@@ -447,6 +448,7 @@ class OrderConfirmPaymentSerializer(serializers.Serializer):
 
         return data
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         """Confirm the payment"""
         instance.confirm_payment(

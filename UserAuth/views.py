@@ -49,7 +49,7 @@ class UserRegistrationView(generics.CreateAPIView):
             {
                 "message": "Registration successful. Please check your email to verify your account.",
                 "user": {
-                    "id": str(user.uid),
+                    "uid": str(user.uid),
                     "email": user.email,
                     "user_type": user.user_type,
                 },
@@ -83,7 +83,7 @@ class EmailVerificationView(generics.GenericAPIView):
             {
                 "message": "Email verified successfully. You can now login.",
                 "user": {
-                    "id": str(user.uid),
+                    "uid": str(user.uid),
                     "email": user.email,
                 },
             },

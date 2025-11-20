@@ -282,6 +282,7 @@ class TicketTypeCreateUpdateSerializer(serializers.ModelSerializer):
 
         return ticket_type
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         """Update ticket type (tiers/days/day_tier_prices updated separately)"""
         tiers_data = validated_data.pop("tiers", None)
